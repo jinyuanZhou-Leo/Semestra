@@ -118,7 +118,7 @@ export const LandingHero = ({ reducedMotion }: LandingHeroProps) => {
               mainClassName="text-orange-500 inline-flex overflow-hidden landing-font-cursive text-5xl sm:text-6xl lg:text-7xl mt-2 font-normal italic drop-shadow-[0_2px_10px_rgba(249,115,22,0.3)] pb-2"
               staggerDuration={0.02}
               splitBy="characters"
-              rotationInterval={4500}
+              rotationInterval={3000}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             />
           </h1>

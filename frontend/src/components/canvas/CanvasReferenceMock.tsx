@@ -110,24 +110,10 @@ export const CanvasReferenceCourseContent = ({
     <div className="max-w-[56rem] space-y-4 text-[1.02rem] leading-8 text-white/78">
       <h3 className="text-[1.55rem] font-semibold tracking-tight text-white">Course Syllabus and Course Schedule</h3>
       <p>
-        <span className="mr-2 rounded-md border border-white/10 bg-white/7 px-2 py-1 font-mono text-sm text-white">Welcome</span>
+        <span className="mr-2 rounded-md border border-white/10 bg-white/7 px-2 py-1 font-mono text-sm text-white whitespace-nowrap">Welcome</span>
         This course page brings lecture materials, schedule context, and teaching contacts into one readable panel so
         students can quickly scan the essentials for the week.
       </p>
-      <div className="space-y-4">
-        <h4 className="text-[1.4rem] font-semibold tracking-tight text-white">Instructors</h4>
-        <div className={cn('grid gap-4', compact ? 'md:grid-cols-1' : 'md:grid-cols-2')}>
-          {INSTRUCTORS.map((instructor) => (
-            <article key={instructor.email} className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
-              <h5 className="text-lg font-semibold text-white">{instructor.name}</h5>
-              <p className="mt-1 text-sm text-white/62">{instructor.role}</p>
-              <p className="mt-3 text-sm text-white/78">Email: {instructor.email}</p>
-              <p className="mt-1 text-sm text-white/62">Office: {instructor.office}</p>
-              <p className="mt-1 text-sm text-white/62">Office Hours: Tue 1:00 - 2:00 PM, Fri 11:00 AM - 12:00 PM</p>
-            </article>
-          ))}
-        </div>
-      </div>
     </div>
   </div>
 );
@@ -240,10 +226,10 @@ interface CanvasLegacyMockPanelProps {
 
 export const CanvasLegacyMockPanel = ({ className }: CanvasLegacyMockPanelProps) => (
   <div className={cn('overflow-hidden rounded-[1.25rem] border border-[#cfd8e3] bg-[#eef2f7] shadow-[0_18px_50px_-28px_rgba(15,23,42,0.55)]', className)}>
-    <div className="grid min-h-0 grid-cols-[4.5rem_minmax(0,1fr)_14rem]">
+    <div className="grid min-h-0 grid-cols-[4.5rem_minmax(0,1fr)]">
       <aside className="flex flex-col items-center gap-5 bg-[#0f3b79] px-3 py-4 text-white">
         <div className="flex size-12 items-center justify-center rounded-md border border-white/20 bg-white/12 text-xl font-semibold">U</div>
-        {['Account', 'Dashboard', 'Courses', 'Groups', 'Calendar', 'Inbox', 'History'].map((item, index) => (
+        {['Account', 'Dashboard', 'Courses', 'Groups', 'Calendar', 'Inbox'].map((item, index) => (
           <div key={item} className={cn('text-center text-[0.72rem] leading-tight text-white/82', index === 2 ? 'font-semibold text-white' : '')}>
             {item}
           </div>
@@ -293,61 +279,16 @@ export const CanvasLegacyMockPanel = ({ className }: CanvasLegacyMockPanelProps)
               Course Information (MUST READ)
             </div>
             <div className="bg-white">
-              {LEGACY_MODULE_FILES.map((file) => (
+              {LEGACY_MODULE_FILES.slice(0, 2).map((file) => (
                 <div key={file} className="flex items-center gap-3 border-b border-[#eceff3] px-4 py-4 font-sans text-[0.92rem] text-[#374151] last:border-b-0">
                   <Paperclip className="size-4 shrink-0 text-[#6b7280]" />
-                  <span>{file}</span>
+                  <span className="truncate">{file}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
       </div>
-
-      <aside className="border-l border-[#e5e7eb] bg-[#f9fafb] px-4 py-6">
-        <div className="space-y-2">
-          {LEGACY_ACTIONS.map((action) => (
-            <div key={action} className="rounded-sm border border-[#d9dee7] bg-[#f3f4f6] px-3 py-2 text-sm text-[#4b5563] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-              {action}
-            </div>
-          ))}
-        </div>
-        <div className="mt-6">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#374151]">
-            <CalendarDays className="size-4" />
-            To Do
-          </div>
-          <div className="space-y-3">
-            {TODO_ITEMS.map((item) => (
-              <div key={item} className="border-b border-[#e5e7eb] pb-3 font-sans text-sm leading-5 text-[#2563eb]">
-                <div className="underline">{item}</div>
-                <div className="mt-1 text-[#4b5563]">ECE110H1 S LEC0101</div>
-                <div className="text-[#6b7280]">Apr 2 at 10:37pm</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="mt-6">
-          <div className="mb-3 font-sans text-sm font-semibold text-[#374151]">Recent Feedback</div>
-          <div className="border-t border-[#e5e7eb] pt-3 font-sans">
-            <div className="flex items-start gap-2 text-sm text-[#2563eb]">
-              <Check className="mt-0.5 size-4 shrink-0 text-[#6ab04c]" />
-              <div>
-                <div className="underline">ECE110 Quiz 2</div>
-                <div className="text-[#4b5563]">ECE110H1 S LEC0101</div>
-                <div className="text-[#6b7280]">18.5 out of 20</div>
-              </div>
-            </div>
-            <div className="mt-4 flex items-start gap-2 text-sm text-[#2563eb]">
-              <X className="mt-0.5 size-4 shrink-0 text-[#9ca3af]" />
-              <div>
-                <div className="underline">Worksheet reflection</div>
-                <div className="text-[#4b5563]">No rubric attached</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
     </div>
   </div>
 );
