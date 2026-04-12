@@ -989,6 +989,19 @@ body>div>div[role="dialog"][data-state] {
   }
 }
 
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+html.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+html.lenis.lenis-stopped {
+  overflow: clip;
+}
+
 .landing-font-display {
   font-family: "Space Grotesk", "DM Sans", "Segoe UI", sans-serif;
 }

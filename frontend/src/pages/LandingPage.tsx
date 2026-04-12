@@ -7,6 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 import { LandingHero } from '@/components/landing/LandingHero';
 import { LandingScrollytelling } from '@/components/landing/LandingScrollytelling';
@@ -27,10 +28,27 @@ export const LandingPage = () => {
         <LandingScrollytelling />
       </div>
 
-      <footer className="border-t border-border/70 py-8 relative z-10 bg-background">
-        <div className="landing-font-body mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 text-xs text-muted-foreground sm:px-6 lg:px-8 md:flex-row md:items-center md:justify-between">
-          <p>Semestra</p>
-          <p>Plan less. Finish more.</p>
+
+
+      {/* Expanded Footer */}
+      <footer className="border-t border-border/70 py-12 relative z-10 bg-background">
+        <div className="landing-font-body mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-center md:items-start gap-6">
+             <div className="flex flex-col items-center md:items-start gap-2">
+                 <span className="font-bold text-lg tracking-tight">Semestra</span>
+                 <p className="text-sm text-muted-foreground text-center md:text-left max-w-xs">The unified operating system for your academic life.</p>
+             </div>
+             
+             <div className="flex gap-8 text-sm text-muted-foreground">
+                 <Link to="#" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+                 <Link to="#" className="hover:text-foreground transition-colors">Terms of Service</Link>
+                 <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">GitHub</a>
+             </div>
+          </div>
+          
+          <div className="border-t border-border/50 pt-8 flex items-center justify-center text-xs text-muted-foreground">
+             <p>© {new Date().getFullYear()} Semestra. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </main>
