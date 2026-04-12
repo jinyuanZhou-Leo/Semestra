@@ -142,7 +142,7 @@ export const LandingScrollytelling = () => {
         .fromTo('.scatter-icon-4', { x: 0 }, { x: 224, duration: 2 }, '<')
         .fromTo('.scatter-icon-5', { x: 0 }, { x: 320, duration: 2 }, '<')
         .to('.scatter-container', { autoAlpha: 1, duration: 2 })
-        .to('.hub-logo', { scale: 0.88, duration: 1 })
+        .to('.hub-logo', { autoAlpha: 0, scale: 0.88, duration: 1 })
         .to('.scatter-container', { autoAlpha: 0, scale: 0.88, duration: 1 }, '<');
 
       // SCENE 1: Gather
@@ -150,7 +150,7 @@ export const LandingScrollytelling = () => {
         .to('.text-scene-1', { autoAlpha: 1, duration: 1.5 })
         .to('.text-scene-1', { autoAlpha: 0, y: -20, duration: 1 })
 
-        .to('.hub-logo', { scale: 1, duration: 1 })
+        .to('.hub-logo', { autoAlpha: 1, scale: 1, duration: 1 })
         .fromTo('.gather-container', { autoAlpha: 0, scale: 0.92 }, { autoAlpha: 1, scale: 1, duration: 1 }, '<')
         .fromTo('.gather-icon-0', { x: 0, y: -220 }, { x: 0, y: 0, duration: 2 }, '<')
         .fromTo('.gather-icon-1', { x: 209, y: -68 }, { x: 0, y: 0, duration: 2 }, '<')
@@ -169,9 +169,10 @@ export const LandingScrollytelling = () => {
 
         .fromTo('.dashboard-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1 })
         .fromTo('.dashboard-skeleton', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1 }, '<')
-        .fromTo('.course-widget', { autoAlpha: 0, z: 280, scale: 1.35 }, { autoAlpha: 1, z: 0, scale: 1, duration: 1.5, stagger: 0.1 })
-        .fromTo('.focus-widget', { autoAlpha: 0, z: 280, scale: 1.35 }, { autoAlpha: 1, z: 0, scale: 1, duration: 1.5, stagger: 0.1 }, '<0.2')
-        .fromTo('.habit-widget', { autoAlpha: 0, z: 280, scale: 1.35 }, { autoAlpha: 1, z: 0, scale: 1, duration: 1.5, stagger: 0.1 }, '<0.2')
+        .fromTo('.course-widget, .focus-widget, .habit-widget', 
+          { autoAlpha: 0, z: 280, scale: 1.35, filter: 'blur(16px)' }, 
+          { autoAlpha: 1, z: 0, scale: 1, filter: 'blur(0px)', duration: 2, stagger: { each: 0.3, from: 'random' } }
+        )
         .to('.dashboard-container', { autoAlpha: 1, duration: 3 })
         .to('.dashboard-container', { autoAlpha: 0, duration: 1 });
 
@@ -269,7 +270,7 @@ export const LandingScrollytelling = () => {
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
           <div className="dashboard-container opacity-0 invisible">
             <div style={{ width: dashboardFrame.width, height: dashboardFrame.height, transform: `scale(${dashboardFrame.scale})`, transformOrigin: 'center' }}>
-              <div className="dashboard-skeleton relative flex h-full w-full origin-center flex-col gap-4 overflow-hidden rounded-[2rem] border-[1.5px] border-border/40 bg-[#0a0a0c]/90 p-5 text-foreground shadow-2xl backdrop-blur-3xl">
+              <div className="dashboard-skeleton relative flex h-full w-full origin-center flex-col gap-4 rounded-[2rem] border-[1.5px] border-border/40 bg-[#0a0a0c]/90 p-5 text-foreground shadow-2xl backdrop-blur-3xl">
                 {/* Dashboard top bar */}
                 <div className="flex shrink-0 items-center justify-between border-b border-white/5 pb-3">
                   <div className="flex items-center gap-4">
