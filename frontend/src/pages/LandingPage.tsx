@@ -7,7 +7,6 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
 
 import { LandingHero } from '@/components/landing/LandingHero';
 import { LandingScrollytelling } from '@/components/landing/LandingScrollytelling';
