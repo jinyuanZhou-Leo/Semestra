@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { BookOpen, Calendar, Database, FileText, LayoutDashboard, Settings, GraduationCap, Target, Sparkles, ArrowUpDown, Pencil, Trash } from 'lucide-react';
+import { BookOpen, Calendar, Database, FileText, LayoutDashboard, Settings, Target, Sparkles, ArrowUpDown, Pencil, Trash } from 'lucide-react';
 
 import SemestraLogo from '@/assets/semestra-logo-circ.webp';
 import Aurora from '@/components/Aurora';
@@ -109,7 +109,6 @@ export const LandingScrollytelling = () => {
   const dashboardFrame = getViewportFrame(viewport.width, viewport.height, 980, 620);
   const canvasFrame = getViewportFrame(viewport.width, viewport.height, 800, 550);
   const calendarFrame = getViewportFrame(viewport.width, viewport.height, 500, 500);
-  const gradebookFrame = getViewportFrame(viewport.width, viewport.height, 980, 620);
 
   useLayoutEffect(() => {
     if (!containerRef.current) return;
@@ -147,107 +146,111 @@ export const LandingScrollytelling = () => {
 
       // SCENE 1: Gather
       tl.to('.text-scene-1', { autoAlpha: 1, y: 0, duration: 1 })
-        .to('.text-scene-1', { autoAlpha: 1, duration: 1.5 })
+        .to('.text-scene-1', { autoAlpha: 1, duration: 2 })
         .to('.text-scene-1', { autoAlpha: 0, y: -20, duration: 1 })
 
-        .to('.hub-logo', { autoAlpha: 1, scale: 1, duration: 1 })
-        .fromTo('.gather-container', { autoAlpha: 0, scale: 0.92 }, { autoAlpha: 1, scale: 1, duration: 1 }, '<')
-        .fromTo('.gather-icon-0', { x: 0, y: -220 }, { x: 0, y: 0, duration: 2 }, '<')
-        .fromTo('.gather-icon-1', { x: 209, y: -68 }, { x: 0, y: 0, duration: 2 }, '<')
-        .fromTo('.gather-icon-2', { x: 129, y: 178 }, { x: 0, y: 0, duration: 2 }, '<')
-        .fromTo('.gather-icon-3', { x: -129, y: 178 }, { x: 0, y: 0, duration: 2 }, '<')
-        .fromTo('.gather-icon-4', { x: -209, y: -68 }, { x: 0, y: 0, duration: 2 }, '<')
-        .to('.hub-logo', { scale: 1.15, duration: 0.5, yoyo: true, repeat: 1 })
-        .to('.gather-container', { autoAlpha: 1, duration: 2 })
-        .to('.hub-logo', { autoAlpha: 0, scale: 0.88, duration: 1 })
-        .to('.gather-container', { autoAlpha: 0, scale: 0.88, duration: 1 }, '<');
+        .to('.hub-logo', { autoAlpha: 1, scale: 1, duration: 1.5 })
+        .fromTo('.gather-container', { autoAlpha: 0, scale: 0.92 }, { autoAlpha: 1, scale: 1, duration: 1.5 }, '<')
+        .fromTo('.gather-icon-0', { x: 0, y: -220 }, { x: 0, y: 0, duration: 3, ease: 'power2.out' }, '<')
+        .fromTo('.gather-icon-1', { x: 209, y: -68 }, { x: 0, y: 0, duration: 3, ease: 'power2.out' }, '<')
+        .fromTo('.gather-icon-2', { x: 129, y: 178 }, { x: 0, y: 0, duration: 3, ease: 'power2.out' }, '<')
+        .fromTo('.gather-icon-3', { x: -129, y: 178 }, { x: 0, y: 0, duration: 3, ease: 'power2.out' }, '<')
+        .fromTo('.gather-icon-4', { x: -209, y: -68 }, { x: 0, y: 0, duration: 3, ease: 'power2.out' }, '<')
+        
+        .to('.hub-logo', { scale: 1.15, duration: 0.8, yoyo: true, repeat: 1 }, '+=1') // Pause before bounce
+        .to('.gather-container', { autoAlpha: 1, duration: 4 })
+        .to('.hub-logo', { autoAlpha: 0, scale: 0.88, duration: 1.5 })
+        .to('.gather-container', { autoAlpha: 0, scale: 0.88, duration: 1.5 }, '<');
 
       // SCENE 2: Dashboard
       tl.to('.text-scene-2', { autoAlpha: 1, y: 0, duration: 1 })
-        .to('.text-scene-2', { autoAlpha: 1, duration: 1.5 })
+        .to('.text-scene-2', { autoAlpha: 1, duration: 2 })
         .to('.text-scene-2', { autoAlpha: 0, y: -20, duration: 1 })
 
-        .fromTo('.dashboard-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1 })
-        .fromTo('.dashboard-skeleton', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1 }, '<')
+        .fromTo('.dashboard-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1.5 })
+        .fromTo('.dashboard-skeleton', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1.5 }, '<')
+        // Pause before widgets assemble
+        .to({}, { duration: 1 })
         .fromTo('.course-widget, .focus-widget, .habit-widget', 
           { autoAlpha: 0, z: 280, scale: 1.35, filter: 'blur(16px)' }, 
-          { autoAlpha: 1, z: 0, scale: 1, filter: 'blur(0px)', duration: 2, stagger: { each: 0.3, from: 'random' } }
+          { autoAlpha: 1, z: 0, scale: 1, filter: 'blur(0px)', duration: 3, ease: 'power3.out', stagger: { each: 0.5, from: 'random' } }
         )
-        .to('.dashboard-container', { autoAlpha: 1, duration: 3 })
-        .to('.dashboard-container', { autoAlpha: 0, duration: 1 });
+        .to('.dashboard-container', { autoAlpha: 1, duration: 5 })
+        .to('.dashboard-container', { autoAlpha: 0, duration: 1.5 });
 
       // SCENE 3: Canvas
       tl.to('.text-scene-3', { autoAlpha: 1, y: 0, duration: 1 })
-        .to('.text-scene-3', { autoAlpha: 1, duration: 1.5 })
+        .to('.text-scene-3', { autoAlpha: 1, duration: 2 })
         .to('.text-scene-3', { autoAlpha: 0, y: -20, duration: 1 })
 
-        .fromTo('.canvas-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1 })
+        .fromTo('.canvas-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1.5 })
         
         // Emphasize contrast instead of big physical displacement:
         // A subtle shift while fading out the messy old canvas to reveal the integrated Semestra Canvas behind it.
         .fromTo('.messy-canvas', 
           { xPercent: 0, rotate: 0, scale: 1, opacity: 1 }, 
-          { xPercent: 12, rotate: 6, scale: 0.95, autoAlpha: 0, duration: 1.5, ease: 'power2.inOut' }, 
-          '+=0.5'
+          { xPercent: 12, rotate: 6, scale: 0.95, autoAlpha: 0, duration: 2.5, ease: 'power2.inOut' }, 
+          '+=1' // Pause before dissolve
         )
         
-        .to('.canvas-container', { autoAlpha: 1, duration: 3 })
-        .to('.canvas-container', { autoAlpha: 0, duration: 1 });
+        .to('.canvas-container', { autoAlpha: 1, duration: 5 })
+        .to('.canvas-container', { autoAlpha: 0, duration: 1.5 });
 
       // SCENE 4: Calendar
       tl.to('.text-scene-4', { autoAlpha: 1, y: 0, duration: 1 })
-        .to('.text-scene-4', { autoAlpha: 1, duration: 1.5 })
+        .to('.text-scene-4', { autoAlpha: 1, duration: 2 })
         .to('.text-scene-4', { autoAlpha: 0, y: -20, duration: 1 })
 
-        .fromTo('.calendar-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1 })
-        .to('.switch-bg', { backgroundColor: 'rgba(249,115,22,1)', duration: 1 })
-        .to('.switch-knob', { x: 28, duration: 1 }, '<')
-        .to('.calendar-item', { opacity: 0.5, scale: 0.98, duration: 1, transformOrigin: 'center' }, '<0.2')
-        .to('.card-accent', { backgroundColor: 'rgba(156,163,175,0.4)', duration: 1 }, '<')
-        .to('.strikethrough-line', { scaleX: 1, duration: 0.6, ease: 'power3.out' }, '<0.1')
-        .fromTo('.skip-badge', { autoAlpha: 0, x: -10 }, { autoAlpha: 1, x: 0, duration: 0.5, ease: 'power2.out' }, '<0.1')
-        .to('.calendar-container', { autoAlpha: 1, duration: 3 })
-        .to('.calendar-container', { autoAlpha: 0, duration: 1 });
+        .fromTo('.calendar-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1.5 })
+        
+        .to('.switch-bg', { backgroundColor: 'rgba(249,115,22,1)', duration: 1.5 }, '+=1') // Pause before user interaction
+        .to('.switch-knob', { x: 28, duration: 1.5, ease: 'back.out(1.5)' }, '<')
+        .to('.calendar-item', { opacity: 0.4, scale: 0.98, duration: 1.5, transformOrigin: 'center' }, '<0.3')
+        .to('.card-accent', { backgroundColor: 'rgba(156,163,175,0.4)', duration: 1.5 }, '<')
+        .to('.strikethrough-line', { scaleX: 1, duration: 1, ease: 'power3.out' }, '<0.2')
+        .fromTo('.skip-badge', { autoAlpha: 0, x: -10 }, { autoAlpha: 1, x: 0, duration: 1, ease: 'back.out(2)' }, '<0.2')
+        .to('.calendar-container', { autoAlpha: 1, duration: 5 })
+        .to('.calendar-container', { autoAlpha: 0, duration: 1.5 });
 
       // SCENE 5: Gradebook
       tl.to('.text-scene-5', { autoAlpha: 1, y: 0, duration: 1 })
-        .to('.text-scene-5', { autoAlpha: 1, duration: 1.5 })
+        .to('.text-scene-5', { autoAlpha: 1, duration: 2 })
         .to('.text-scene-5', { autoAlpha: 0, y: -20, duration: 1 })
 
-        .fromTo('.gradebook-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1 })
+        .fromTo('.gradebook-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1.5 })
         
-        // 1) Focus & Toggle Plan Mode (HERO ACTION 1 - SLOWED DOWN)
-        .to('.gradebook-container', { scale: 1.05, duration: 1.5, ease: 'power2.out' })
-        .to('.plan-mode-btn-gb', { scale: 1.15, boxShadow: '0 0 50px rgba(249,115,22,0.5)', duration: 0.8 }, '<0.2')
-        .to('.plan-mode-switch', { backgroundColor: 'rgba(249,115,22,1)', duration: 0.6 }, '<0.2')
-        .to('.plan-mode-knob-gb', { x: 14, duration: 0.6 }, '<')
-        .to('.plan-mode-icon-gb', { color: 'rgba(249,115,22,1)', duration: 0.6 }, '<')
-        .to('.plan-mode-btn-gb', { scale: 1, duration: 0.6, ease: 'back.out(2)' }, '+=0.6') // Long pause of emphasis
+        // 1) Focus & Toggle Plan Mode (HERO ACTION 1 - MUCH SLOWER)
+        .to('.gradebook-container', { scale: 1.05, duration: 2.5, ease: 'power2.out' })
+        .to('.plan-mode-btn-gb', { scale: 1.15, boxShadow: '0 0 50px rgba(249,115,22,0.5)', duration: 1.5 }, '<0.5')
+        .to('.plan-mode-switch', { backgroundColor: 'rgba(249,115,22,1)', duration: 1 }, '<0.2')
+        .to('.plan-mode-knob-gb', { x: 14, duration: 1 }, '<')
+        .to('.plan-mode-icon-gb', { color: 'rgba(249,115,22,1)', duration: 1 }, '<')
+        .to('.plan-mode-btn-gb', { scale: 1, duration: 1, ease: 'back.out(2)' }, '+=1.2') // Long pause of emphasis
         
         // 2) Buttons morph
-        .to('.add-btn', { autoAlpha: 0, duration: 0.5 }, '<')
+        .to('.add-btn', { autoAlpha: 0, duration: 0.8 }, '<')
         .to('.add-btn', { display: 'none', duration: 0 })
         .to('.target-gpa-box', { display: 'flex', duration: 0 })
         .to('.autofill-btn', { display: 'flex', duration: 0 })
-        .to('.target-gpa-box, .autofill-btn', { autoAlpha: 1, duration: 0.6 }, '<0.2')
-        .to('.score-header-lbl', { autoAlpha: 0, duration: 0.4 }, '<')
-        .to('.score-header-whatif', { autoAlpha: 1, duration: 0.4 }, '<0.2')
+        .to('.target-gpa-box, .autofill-btn', { autoAlpha: 1, duration: 1 }, '<0.2')
+        .to('.score-header-lbl', { autoAlpha: 0, duration: 0.8 }, '<')
+        .to('.score-header-whatif', { autoAlpha: 1, duration: 0.8 }, '<0.2')
 
         // 4) Click Autofill (bounce) (HERO PAUSE 2)
-        .to('.autofill-btn', { scale: 0.95, duration: 0.2 }, '+=1.2') // explicit long pause to draw anticipation
-        .to('.autofill-btn', { scale: 1.05, duration: 0.5, ease: 'back.out(3)', boxShadow: '0 0 60px rgba(249,115,22,0.8)' })
-        .to('.autofill-btn', { scale: 1, duration: 0.3 }, '+=0.3')
+        .to('.autofill-btn', { scale: 0.95, duration: 0.3 }, '+=2') // explicit very long pause to build anticipation
+        .to('.autofill-btn', { scale: 1.05, duration: 0.8, ease: 'back.out(3)', boxShadow: '0 0 60px rgba(249,115,22,0.8)' })
+        .to('.autofill-btn', { scale: 1, duration: 0.5 }, '+=0.6')
 
         // 5) Hero Burst of Auto-filled Scores (Camera Zoom & SCROLL)
         // Zoom dramatically ONLY to the table list making it the core screen element
-        .to('.gradebook-container', { scale: 1.4, y: -70, duration: 1.5, ease: 'power3.inOut' }, '+=0.2')
+        .to('.gradebook-container', { scale: 1.4, y: -70, duration: 2.5, ease: 'power3.inOut' }, '+=0.5')
         
         // Table scroll with past item dissolving so it doesn't overlap header
-        .to('.table-scroll-area', { y: -50, duration: 1.2, ease: 'power2.inOut' }, '<0.6')
-        .to('.past-item', { autoAlpha: 0, y: -20, duration: 0.8 }, '<')
+        .to('.table-scroll-area', { y: -50, duration: 2, ease: 'power2.inOut' }, '<1')
+        .to('.past-item', { autoAlpha: 0, y: -20, duration: 1.5 }, '<')
         
         // Magic scrolling sequence: Rows scroll from bottom
-        .fromTo('.autofill-row', { autoAlpha: 0, y: 60 }, { autoAlpha: 1, y: 0, duration: 1, stagger: 0.2, ease: 'power3.out' }, '<0.2')
+        .fromTo('.autofill-row', { autoAlpha: 0, y: 60 }, { autoAlpha: 1, y: 0, duration: 1.5, stagger: 0.4, ease: 'power3.out' }, '<0.4')
 
         // Score highlights jump out sequentially
         .to('.whatif-input-wrapper', { 
@@ -258,14 +261,15 @@ export const LandingScrollytelling = () => {
             backgroundColor: 'rgba(249,115,22,0.15)', 
             borderColor: 'rgba(249,115,22,1)',
             boxShadow: '0 20px 60px -10px rgba(249,115,22,0.8)',
-            duration: 1, 
+            duration: 1.5, 
             ease: 'back.out(1.5)',
-            stagger: 0.4 
+            stagger: 0.6 
         }, '<0.5')
-        .to('.whatif-val', { autoAlpha: 1, y: 0, duration: 0.8, ease: 'back.out(2)', stagger: 0.4 }, '<0.1')
+        .to('.whatif-val', { autoAlpha: 1, y: 0, duration: 1.2, ease: 'back.out(2)', stagger: 0.6 }, '<0.2')
         
-        .to('.gradebook-container', { autoAlpha: 1, duration: 4.5 })
-        .to('.gradebook-container', { autoAlpha: 0, duration: 1 });
+        // Hold on the complete glorious interface very long before dissolving
+        .to('.gradebook-container', { autoAlpha: 1, duration: 8 })
+        .to('.gradebook-container', { autoAlpha: 0, duration: 1.5 });
 
       // CTA
       tl.to('.hud-bg', { autoAlpha: 0, duration: 1 })

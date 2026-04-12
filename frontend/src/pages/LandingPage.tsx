@@ -40,9 +40,7 @@ export const LandingPage = () => {
              </div>
              
              <div className="flex gap-8 text-sm text-muted-foreground">
-                 <Link to="#" className="hover:text-foreground transition-colors">Privacy Policy</Link>
-                 <Link to="#" className="hover:text-foreground transition-colors">Terms of Service</Link>
-                 <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">GitHub</a>
+                 <a href="https://github.com/jinyuanZhou-Leo/Semestra" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">GitHub</a>
              </div>
           </div>
           

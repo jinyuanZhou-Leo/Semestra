@@ -1,39 +1,9 @@
 import type { LucideIcon } from 'lucide-react';
-import { ExternalLink, Home, Info, Newspaper, NotebookPen, PanelLeft, CalendarDays, Bell, Search, Clock3, Paperclip, Check, X } from 'lucide-react';
+import { ExternalLink, Home, Info, Newspaper, NotebookPen, PanelLeft, Bell, Search, Clock3, Paperclip} from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
 const COURSE_LINKS = ['Home', 'Lectures', 'Labs', 'Tutorials', 'Plenary Lectures', 'Past Exams', 'Piazza', 'AskAlan'];
-
-const INSTRUCTORS = [
-  {
-    email: 'avery.chen@example.edu',
-    name: 'Dr. Avery Chen',
-    office: 'Sandford Fleming 402',
-    role: 'Lead Instructor',
-  },
-  {
-    email: 'morgan.lee@example.edu',
-    name: 'Morgan Lee',
-    office: 'Sandford Fleming 315',
-    role: 'Teaching Fellow',
-  },
-];
-
-const LEGACY_ACTIONS = [
-  'Academic Integrity',
-  'Quercus Privacy FAQ',
-  'Student Mental Health',
-  'View Course Stream',
-  'View Course Calendar',
-  'View Course Notifications',
-];
-
-const TODO_ITEMS = [
-  'Recording of the review session uploaded',
-  'Midterm solution set posted',
-  'Updated office hour schedule for next week',
-];
 
 const LEGACY_ANNOUNCEMENTS = [
   {
