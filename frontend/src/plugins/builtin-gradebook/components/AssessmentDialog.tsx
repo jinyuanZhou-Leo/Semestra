@@ -16,6 +16,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
+    DialogClose,
     DialogContent,
     DialogDescription,
     DialogFooter,
@@ -373,11 +374,13 @@ export const AssessmentDialog: React.FC<AssessmentDialogProps> = ({
                     </div>
                 </div>
 
-                <DialogFooter className="w-full">
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                        Cancel
-                    </Button>
-                    <Button type="button" onClick={() => void onSave()} disabled={isSaving}>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button type="button" variant="outline" className="w-full sm:w-auto">
+                            Cancel
+                        </Button>
+                    </DialogClose>
+                    <Button type="button" className="w-full sm:w-auto" onClick={() => void onSave()} disabled={isSaving}>
                         {draft.id ? 'Save Changes' : draft.source_mode === 'lms' ? `Add ${selectedLmsCount || ''} ${selectedLmsCount === 1 ? 'Assessment' : 'Assessments'}`.trim() : 'Add Assessment'}
                     </Button>
                 </DialogFooter>

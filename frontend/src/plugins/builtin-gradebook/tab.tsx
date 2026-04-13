@@ -53,6 +53,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group';
 import { cn } from '@/lib/utils';
 import { useCourseData } from '@/contexts/CourseDataContext';
 import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
@@ -850,12 +851,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             />
         );
     }
-    const planModeSwitchLabel = 'Plan Mode';
-    const toolbarSecondarySlotClassName = cn(
-        'flex min-w-0 shrink items-center overflow-hidden transition-[max-width,opacity] duration-200',
-        planMode ? 'max-w-[300px] opacity-100' : 'pointer-events-none max-w-0 opacity-0',
-    );
-
     const showWeightMismatchState = Boolean(course && summary && !summary.has_complete_weight);
 
     return (
@@ -973,16 +968,14 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 <h2 className="text-lg font-semibold tracking-tight">Assessments</h2>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-                        <div className={cn(
-                            'flex h-11 w-full shrink-0 select-none items-center justify-between gap-2 rounded-md border px-3 sm:w-[184px]',
-                            planMode ? 'border-amber-400/50 bg-amber-100/50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-100' : 'border-border/60 bg-background/80',
-                        )}>
-                            <div className="flex items-center gap-2 text-sm font-medium tracking-tight whitespace-nowrap">
+                    <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+                        <div className="flex h-11 w-full shrink-0 items-center justify-between gap-3 sm:w-auto sm:justify-start">
+                            <Label htmlFor="gradebook-plan-mode" className="flex items-center gap-2 text-sm font-medium tracking-tight">
                                 <Sparkles className={cn('h-4 w-4', planMode ? 'text-amber-500 dark:text-amber-400' : 'text-muted-foreground')} />
-                                <span>{planModeSwitchLabel}</span>
-                            </div>
+                                <span>Plan Mode</span>
+                            </Label>
                             <Switch
+                                id="gradebook-plan-mode"
                                 checked={planMode}
                                 onCheckedChange={handlePlanModeCheckedChange}
                                 disabled={isMutating}
@@ -991,81 +984,83 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                             />
                         </div>
 
-                        <div className={toolbarSecondarySlotClassName}>
-                            <div className="flex h-11 min-w-[188px] flex-1 items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-3 dark:border-amber-500/40 dark:bg-amber-950/20">
+                        {planMode ? (
+                            <div className="flex min-w-0 items-center gap-2">
                                 <Target className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
-                                <Label htmlFor="gradebook-target-gpa" className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                                    {targetInputMode === 'gpa' ? 'Target GPA' : 'Target %'}
+                                <Label htmlFor="gradebook-target-gpa" className="shrink-0 text-sm font-medium whitespace-nowrap">
+                                    Target
                                 </Label>
-                                <Input
-                                    id="gradebook-target-gpa"
-                                    className="h-8 flex-1 min-w-0 border-0 bg-transparent px-0 text-right tabular-nums shadow-none focus-visible:ring-0 text-amber-950 dark:text-amber-50 font-medium"
-                                    value={targetGpaDraft}
-                                    inputMode="decimal"
-                                    placeholder={targetInputMode === 'gpa' ? '3.70' : '85.0'}
-                                    onChange={(event) => setTargetGpaDraft(event.target.value)}
-                                    onBlur={() => void handlePersistTargetGpa()}
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Enter') {
-                                            event.preventDefault();
-                                            void handlePersistTargetGpa();
-                                        }
-                                    }}
-                                    disabled={!planMode}
-                                    tabIndex={planMode ? 0 : -1}
-                                />
-                                <div className="text-xs font-medium text-amber-900/60 dark:text-amber-200/60 min-w-fit">
-                                    {targetInputMode === 'gpa' ? 'GPA' : '%'}
-                                </div>
+                                <InputGroup className="min-w-0 flex-1 sm:w-32 sm:flex-none">
+                                    <InputGroupInput
+                                        id="gradebook-target-gpa"
+                                        className="tabular-nums"
+                                        value={targetGpaDraft}
+                                        inputMode="decimal"
+                                        placeholder={targetInputMode === 'gpa' ? '3.70' : '85.0'}
+                                        onChange={(event) => setTargetGpaDraft(event.target.value)}
+                                        onBlur={() => void handlePersistTargetGpa()}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter') {
+                                                event.preventDefault();
+                                                void handlePersistTargetGpa();
+                                            }
+                                        }}
+                                    />
+                                    <InputGroupAddon align="inline-end">
+                                        <InputGroupText>{targetInputMode === 'gpa' ? 'GPA' : '%'}</InputGroupText>
+                                    </InputGroupAddon>
+                                </InputGroup>
                                 <Button
                                     type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 shrink-0 rounded-md text-amber-900 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-950/35"
+                                    variant="outline"
+                                    className="shrink-0"
                                     onClick={handleToggleTargetInputMode}
-                                    disabled={!planMode}
-                                    tabIndex={planMode ? 0 : -1}
                                     aria-label={targetInputMode === 'gpa' ? 'Switch target input to GPA Percentage' : 'Switch target input to GPA'}
                                     title={targetInputMode === 'gpa' ? 'Switch to GPA Percentage' : 'Switch to GPA'}
                                 >
                                     <ArrowRightLeft className="h-3.5 w-3.5 shrink-0" />
+                                    <span>{targetInputMode === 'gpa' ? 'Use %' : 'Use GPA'}</span>
                                 </Button>
                             </div>
-                        </div>
+                        ) : null}
                     </div>
 
-                    <div className="relative h-11 w-full shrink-0 sm:w-[188px]">
-                        <div className="absolute inset-0">
-                            <div className={cn(
-                                "absolute inset-0 transition-all duration-300",
-                                planMode ? "opacity-0 invisible" : "opacity-100 visible"
-                            )}>
+                    <div className="w-full shrink-0 sm:w-auto">
+                        <div className="relative w-full sm:w-[184px]">
+                            <div
+                                className={cn(
+                                    'transition-all duration-200',
+                                    planMode ? 'pointer-events-none invisible opacity-0' : 'opacity-100',
+                                )}
+                            >
                                 <Button
                                     type="button"
                                     disabled={isMutating || planMode}
-                                    className="h-11 w-full rounded-md px-3 sm:px-4"
+                                    className="w-full"
                                     onClick={() => {
                                         setAssessmentDraft(createAssessmentDraft(gradebook));
                                         setAssessmentDialogOpen(true);
                                     }}
                                 >
                                     <Plus className="mr-2 h-4 w-4 shrink-0" />
-                                    <span className="truncate">Add Assessment</span>
+                                    <span>Add Assessment</span>
                                 </Button>
                             </div>
 
-                            <div className={cn(
-                                "absolute inset-0 transition-all duration-300",
-                                planMode ? "opacity-100 visible" : "opacity-0 invisible"
-                            )}>
+                            <div
+                                className={cn(
+                                    'absolute inset-0 transition-all duration-200',
+                                    planMode ? 'opacity-100' : 'pointer-events-none invisible opacity-0',
+                                )}
+                            >
                                 <Button
                                     type="button"
                                     onClick={() => void handleRunPlan()}
                                     disabled={isMutating || !planMode}
-                                    className="h-11 w-full rounded-md bg-amber-500 text-amber-950 hover:bg-amber-400 disabled:bg-muted disabled:text-muted-foreground px-3 sm:px-4"
+                                    className="w-full bg-amber-500 text-amber-950 hover:bg-amber-400 disabled:bg-muted disabled:text-muted-foreground"
                                 >
                                     <Sparkles className="mr-2 h-4 w-4 shrink-0" />
-                                    <span className="truncate">Auto-fill</span>
+                                    <span>Auto-fill</span>
                                 </Button>
                             </div>
                         </div>
