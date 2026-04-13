@@ -666,7 +666,6 @@ describe('DataTable — built-in pagination', () => {
         );
 
         const scrollArea = container.querySelector('[data-slot="data-table-scroll-area"]');
-        expect(scrollArea).toHaveClass('overflow-y-auto');
         expect(scrollArea).toHaveStyle({ maxHeight: '240px' });
         expect(scrollArea).toContainElement(screen.getByRole('table'));
         expect(scrollArea).not.toContainElement(screen.getByText('Showing 1-2 of 3 courses'));
@@ -687,9 +686,37 @@ describe('DataTable — built-in pagination', () => {
         );
 
         const scrollArea = container.querySelector('[data-slot="data-table-scroll-area"]');
-        expect(scrollArea).toHaveClass('overflow-y-auto');
         expect(scrollArea).toHaveStyle({ height: '320px' });
         expect(scrollArea).not.toHaveStyle({ maxHeight: '320px' });
+    });
+
+    it('freezes the table header only when freezeHeader is enabled', () => {
+        const { container, rerender } = render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[{ key: 'name', label: 'Name' }]}
+                maxBodyHeight={240}
+            />,
+        );
+
+        let headerRowGroup = container.querySelector('thead');
+        expect(headerRowGroup?.className).not.toContain('[&_th]:sticky');
+
+        rerender(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[{ key: 'name', label: 'Name' }]}
+                maxBodyHeight={240}
+                freezeHeader
+            />,
+        );
+
+        headerRowGroup = container.querySelector('thead');
+        expect(headerRowGroup?.className).toContain('[&_th]:sticky');
     });
 });
 

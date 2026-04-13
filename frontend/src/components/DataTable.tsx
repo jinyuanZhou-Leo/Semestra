@@ -327,6 +327,8 @@ export interface DataTableProps<T> {
     bodyHeight?: number | string;
     /** Maximum height for the scrollable table area. Keeps pagination outside the scroll region. */
     maxBodyHeight?: number | string;
+    /** Freezes the table header while the table body scrolls. */
+    freezeHeader?: boolean;
     /** Enables built-in client-side pagination when provided. */
     pagination?: {
         /** Number of rows per page. Default: 10. */
@@ -361,6 +363,7 @@ export function DataTable<T>({
     isLoading,
     bodyHeight,
     maxBodyHeight,
+    freezeHeader = false,
     pagination,
     rootClassName,
     shellClassName,
@@ -467,7 +470,7 @@ export function DataTable<T>({
     const tableMarkup = (
         <div
             data-slot="data-table-scroll-area"
-            className={cn(hasBoundedBodyHeight && 'min-h-0 overflow-y-auto')}
+            className={cn('min-w-0', hasBoundedBodyHeight && 'min-h-0 overflow-y-auto')}
             style={scrollAreaStyle}
         >
             <TableShell
@@ -483,7 +486,6 @@ export function DataTable<T>({
                             // Auto-mode guards: prevent any single column from getting too
                             // narrow (min) or too wide (max) without explicit caller control.
                             '[&_td]:min-w-[6rem] [&_td]:max-w-[18rem]',
-                            '[&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap',
                             '[&_th]:min-w-[6rem] [&_th]:max-w-[18rem]',
                             '[&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap',
                         ],
@@ -513,7 +515,9 @@ export function DataTable<T>({
                     )}
 
                     {/* ── Header ─────────────────────────────────────────── */}
-                    <TableHeader className={cn(hasBoundedBodyHeight && '[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-background')}>
+                    <TableHeader className={cn(
+                        freezeHeader && hasBoundedBodyHeight && '[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-background',
+                    )}>
                         {columns ? (
                             <TableRow>
                                 {columns.map((col) => {
@@ -593,10 +597,10 @@ export function DataTable<T>({
                                         return (
                                             <TableCell
                                                 key={col.key}
-                                                className={cn('overflow-hidden', ALIGN_CLASS[align], extraClass)}
+                                                className={cn(ALIGN_CLASS[align], extraClass)}
                                             >
                                                 {col.cell ? (
-                                                    <div className="min-w-0 overflow-hidden">
+                                                    <div className="min-w-0">
                                                         {(() => {
                                                             const cellContent = col.cell(item, absoluteIndex);
                                                             if (typeof cellContent === 'string' || typeof cellContent === 'number') {

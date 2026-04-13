@@ -1,6 +1,6 @@
 // input:  [Vitest assertions, builtin-gradebook shared helpers, and simplified gradebook fixtures]
-// output: [test suite validating builtin-gradebook forecast summaries, exact-weight gating, plan-mode recommendations, GPA-threshold resolution, and stable badge color fallbacks]
-// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers, temporary what-if calculations, exact-100 weight validation, band-aware GPA scale parsing, continuous integer-band matching, and category badge helpers]
+// output: [test suite validating builtin-gradebook forecast summaries, exact-weight gating, plan-mode recommendations, GPA-threshold resolution, exact-percentage targets, and stable badge color fallbacks]
+// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers, temporary what-if calculations, exact-100 weight validation, band-aware GPA scale parsing, continuous integer-band matching, exact percentage planning targets, and category badge helpers]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -162,13 +162,66 @@ describe('builtin-gradebook shared helpers', () => {
         expect(summary.minimum_required_average).toBeNull();
     });
 
-    it('fills auto what-if scores using history and fallback rules', () => {
-        const whatIfScores = buildSuggestedWhatIfScores(fixture, 4);
+    it('auto mode: adds equal extra effort above each assessment expected score', () => {
+        // Fixture: assessment-1 graded (82), assessment-2 same category (pending), assessment-3 different category (pending).
+        // Global weighted mean = 82. Expected scores: assessment-2 = 82 (shrunk), assessment-3 = 82 (no history → global mean).
+        // Base projection = 20.5 + 20.5 + 41 = 82%. Deficit to 90% = 8%.
+        // δ = 8 * 100 / 75 = 10.667 → both get ceil(82 + 10.667) = 93.
+        const whatIfScores = buildSuggestedWhatIfScores(fixture, 90);
 
-        expect(whatIfScores['assessment-2']).toBeGreaterThanOrEqual(82);
-        expect(whatIfScores['assessment-3']).toBeGreaterThanOrEqual(50);
-        expect(whatIfScores['assessment-2']).toBe(Math.ceil(whatIfScores['assessment-2'] ?? 0));
-        expect(whatIfScores['assessment-3']).toBe(Math.ceil(whatIfScores['assessment-3'] ?? 0));
+        expect(whatIfScores['assessment-2']).toBe(93);
+        expect(whatIfScores['assessment-3']).toBe(93);
+    });
+
+    it('auto mode: all scores are integers (ceiling applied)', () => {
+        const whatIfScores = buildSuggestedWhatIfScores(fixture, 90);
+
+        Object.values(whatIfScores).forEach((score) => {
+            expect(score).toBe(Math.ceil(score));
+        });
+    });
+
+    it('auto mode: honors an exact percentage target instead of the GPA band minimum', () => {
+        const whatIfScores = buildSuggestedWhatIfScores(fixture, 89);
+        const result = buildPlanModeResult(fixture, 3.9, 89, whatIfScores);
+
+        expect(whatIfScores['assessment-2']).toBe(92);
+        expect(whatIfScores['assessment-3']).toBe(92);
+        expect(result.target_percentage).toBe(89);
+        expect(result.projected_percentage).toBe(89.5);
+    });
+
+    it('auto mode: lowers expected scores when the target is below the historical baseline', () => {
+        const whatIfScores = buildSuggestedWhatIfScores(fixture, 70);
+        const result = buildPlanModeResult(fixture, 3.0, 70, whatIfScores);
+
+        expect(whatIfScores['assessment-2']).toBe(66);
+        expect(whatIfScores['assessment-3']).toBe(66);
+        expect(result.projected_percentage).toBe(70);
+        expect(result.target_percentage).toBe(70);
+    });
+
+    it('simple_minimum_needed: caps recommended scores at 100 when target is infeasible', () => {
+        // With score=0 on assessment-1: current = 0%, requiredAverage = 90/75*100 = 120 → capped to 100.
+        const infeasibleFixture: CourseGradebook = {
+            ...fixture,
+            forecast_model: 'simple_minimum_needed',
+            assessments: fixture.assessments.map((assessment) => (
+                assessment.id === 'assessment-1' ? { ...assessment, score: 0 } : assessment
+            )),
+        };
+        const whatIfScores = buildSuggestedWhatIfScores(infeasibleFixture, 90);
+
+        expect(whatIfScores['assessment-2']).toBe(100);
+        expect(whatIfScores['assessment-3']).toBe(100);
+    });
+
+    it('simple_minimum_needed: assigns same score to all pending assessments', () => {
+        const simpleFixture: CourseGradebook = { ...fixture, forecast_model: 'simple_minimum_needed' };
+        const whatIfScores = buildSuggestedWhatIfScores(simpleFixture, 90);
+        const scores = Object.values(whatIfScores);
+
+        expect(new Set(scores).size).toBe(1);
     });
 
     it('computes a plan-mode projection from temporary what-if scores', () => {
@@ -176,7 +229,7 @@ describe('builtin-gradebook shared helpers', () => {
             'assessment-2': 90,
             'assessment-3': 94,
         };
-        const result = buildPlanModeResult(fixture, 4, whatIfScores);
+        const result = buildPlanModeResult(fixture, 4, 90, whatIfScores);
 
         expect(result.target_percentage).toBe(90);
         expect(result.projected_percentage).toBe(90);

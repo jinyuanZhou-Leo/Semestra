@@ -1,6 +1,6 @@
 // input:  [gradebook API contracts, date-fns helpers, builtin-gradebook table view preferences, and shared badge-color utilities]
-// output: [builtin-gradebook plugin constants, exact-weight-gated forecast/plan calculators, shared formatters, stable GPA-threshold resolution helpers, and category badge color helpers]
-// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, settings surface, and Canvas handoff target resolution, including exact-100 total-weight calculation gating, band-aware numeric-or-range GPA scale parsing, and continuous matching for adjacent integer-authored ranges]
+// output: [builtin-gradebook plugin constants, exact-weight-gated forecast/plan calculators, shared formatters, stable GPA-threshold resolution helpers, exact-percentage planning helpers, and category badge color helpers]
+// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, settings surface, and Canvas handoff target resolution, including exact-100 total-weight calculation gating, band-aware numeric-or-range GPA scale parsing, continuous matching for adjacent integer-authored ranges, and exact percentage plan targets]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -161,6 +161,7 @@ export const normalizeGradebookDefaultsSettings = (settings: unknown): Gradebook
 const roundValue = (value: number, digits: number = 4): number => Number(value.toFixed(digits));
 const clampScore = (value: number): number => Math.max(0, Math.min(100, value));
 const ceilScore = (value: number): number => clampScore(Math.ceil(value));
+const floorScore = (value: number): number => clampScore(Math.floor(value));
 const GRADEBOOK_WEIGHT_TOLERANCE = 0.001;
 const SCORE_DOMAIN_END = 100;
 const RANGE_TOLERANCE = 1e-9;
@@ -301,9 +302,8 @@ const calculateCurrentScorePercentage = (gradebook: CourseGradebook): number => 
 
 export const calculateRequiredAverage = (
     gradebook: CourseGradebook,
-    targetGpa: number,
+    targetPercentage: number | null,
 ): number | null => {
-    const targetPercentage = resolveTargetPercentageForGpa(targetGpa, gradebook.scaling_table);
     const pendingAssessments = getPendingAssessments(gradebook);
     const remainingWeight = pendingAssessments.reduce((sum, assessment) => sum + assessment.weight, 0);
     if (targetPercentage === null) return null;
@@ -347,7 +347,9 @@ export const buildComputedGradebookSummary = (gradebook: CourseGradebook): Compu
         current_real_gpa: currentRealGpa,
         forecast_percentage: forecastPercentage,
         forecast_gpa: forecastPercentage === null ? null : calculateGradebookGpa(forecastPercentage, gradebook.scaling_table),
-        minimum_required_average: hasCompleteWeight ? calculateRequiredAverage(gradebook, gradebook.target_gpa) : null,
+        minimum_required_average: hasCompleteWeight
+            ? calculateRequiredAverage(gradebook, resolveTargetPercentageForGpa(gradebook.target_gpa, gradebook.scaling_table))
+            : null,
         target_gpa: gradebook.target_gpa,
         target_percentage: resolveTargetPercentageForGpa(gradebook.target_gpa, gradebook.scaling_table),
         total_weight: totalWeight,
@@ -379,124 +381,139 @@ export const buildComputedGradebookSummary = (gradebook: CourseGradebook): Compu
     };
 };
 
-const distributeUniformScores = (
-    pendingAssessments: GradebookAssessment[],
-    recommendations: Record<string, number>,
-    deficitContribution: number,
-): number => {
-    const uniformAssessments = pendingAssessments.filter((assessment) => recommendations[assessment.id] === 50);
-    const totalWeight = uniformAssessments.reduce((sum, assessment) => sum + assessment.weight, 0);
-    if (totalWeight <= 0 || deficitContribution <= 0) return deficitContribution;
+// Controls how strongly per-category mean is shrunk toward the global mean.
+// With K=3: n=1 → 25% category weight; n=3 → 50%; n=9 → 75%.
+const SHRINKAGE_K = 3;
 
-    const nextScore = clampScore(50 + (deficitContribution * 100) / totalWeight);
-    uniformAssessments.forEach((assessment) => {
-        recommendations[assessment.id] = nextScore;
-    });
-    const addedContribution = uniformAssessments.reduce((sum, assessment) => (
-        sum + (assessment.weight * (nextScore - 50)) / 100
-    ), 0);
-    return Math.max(0, deficitContribution - addedContribution);
-};
-
-const distributeHistoryScores = (
-    weightedHistory: Array<{ assessment: GradebookAssessment; mean: number; deviation: number }>,
-    recommendations: Record<string, number>,
-    deficitContribution: number,
-): number => {
-    if (weightedHistory.length === 0 || deficitContribution <= 0) return deficitContribution;
-
-    const active = [...weightedHistory];
-    let remainingDeficit = deficitContribution;
-
-    while (active.length > 0 && remainingDeficit > 0.0001) {
-        const denominator = active.reduce((sum, item) => sum + ((item.assessment.weight ** 2) * (item.deviation ** 2)), 0);
-        if (denominator <= 0) break;
-
-        const saturating = active.filter((item) => {
-            const baseScore = recommendations[item.assessment.id];
-            const delta = remainingDeficit * 100 * item.assessment.weight * (item.deviation ** 2) / denominator;
-            return baseScore + delta >= 100;
-        });
-
-        if (saturating.length > 0) {
-            saturating.forEach((item) => {
-                const currentScore = recommendations[item.assessment.id];
-                recommendations[item.assessment.id] = 100;
-                remainingDeficit -= (item.assessment.weight * (100 - currentScore)) / 100;
-                active.splice(active.findIndex((entry) => entry.assessment.id === item.assessment.id), 1);
-            });
-            continue;
-        }
-
-        active.forEach((item) => {
-            const delta = remainingDeficit * 100 * item.assessment.weight * (item.deviation ** 2) / denominator;
-            recommendations[item.assessment.id] = clampScore(recommendations[item.assessment.id] + delta);
-        });
-        remainingDeficit = 0;
-    }
-
-    return Math.max(0, remainingDeficit);
+const calculateGlobalWeightedMean = (gradebook: CourseGradebook): number | null => {
+    const graded = getGradedAssessments(gradebook);
+    const totalWeight = graded.reduce((sum, assessment) => sum + assessment.weight, 0);
+    if (totalWeight <= 0) return null;
+    return roundValue(
+        graded.reduce((sum, assessment) => sum + assessment.weight * (assessment.score ?? 0), 0) / totalWeight,
+        3,
+    );
 };
 
 export const buildSuggestedWhatIfScores = (
     gradebook: CourseGradebook,
-    targetGpa: number,
+    targetPercentage: number | null,
 ): Record<string, number> => {
     const pendingAssessments = getPendingAssessments(gradebook);
     const recommendations: Record<string, number> = {};
     if (pendingAssessments.length === 0) return recommendations;
 
-    const targetPercentage = resolveTargetPercentageForGpa(targetGpa, gradebook.scaling_table);
     if (targetPercentage === null) return recommendations;
 
     const currentContribution = calculateCurrentScorePercentage(gradebook);
-    const requiredAverage = calculateRequiredAverage(gradebook, targetGpa);
+    const requiredAverage = calculateRequiredAverage(gradebook, targetPercentage);
+
     if (gradebook.forecast_model === 'simple_minimum_needed') {
-        const suggested = ceilScore(requiredAverage ?? 0);
+        // Assign the same minimum required score to every pending assessment, capped at 100.
+        const suggested = ceilScore(Math.max(0, requiredAverage ?? 0));
         pendingAssessments.forEach((assessment) => {
             recommendations[assessment.id] = suggested;
         });
         return recommendations;
     }
 
+    // Auto mode: Equal Extra Effort algorithm.
+    //
+    // 1. Estimate an expected score for each pending assessment using shrinkage:
+    //    pull the per-category mean toward the student's global weighted mean,
+    //    so that thin category history (n=1,2) does not dominate.
+    // 2. Shift the expected scores toward the target percentage by applying
+    //    a uniform adjustment across pending assessments.
+    // 3. Handle saturation iteratively in either direction (score → 100 or 0).
+
+    const globalMean = calculateGlobalWeightedMean(gradebook);
     const categoryStats = new Map(buildCategoryStats(gradebook).map((stats) => [stats.categoryId, stats]));
-    const historyAssessments: Array<{ assessment: GradebookAssessment; mean: number; deviation: number }> = [];
 
     pendingAssessments.forEach((assessment) => {
         const stats = categoryStats.get(assessment.category_id);
-        if (stats?.hasHistory && stats.meanScore !== null && stats.standardDeviation !== null) {
-            const mean = clampScore(stats.meanScore);
-            recommendations[assessment.id] = mean;
-            historyAssessments.push({
-                assessment,
-                mean,
-                deviation: Math.max(stats.standardDeviation, 8),
-            });
-            return;
+        const categoryMean = stats?.meanScore ?? null;
+        const sampleCount = stats?.sampleCount ?? 0;
+
+        if (globalMean !== null && categoryMean !== null && sampleCount > 0) {
+            const alpha = sampleCount / (sampleCount + SHRINKAGE_K);
+            recommendations[assessment.id] = clampScore(alpha * categoryMean + (1 - alpha) * globalMean);
+        } else {
+            // No graded assessments at all, or this category has no history:
+            // fall back to global mean, or to requiredAverage if even that is unavailable.
+            recommendations[assessment.id] = clampScore(globalMean ?? Math.max(0, requiredAverage ?? 0));
         }
-        recommendations[assessment.id] = 50;
     });
 
     const baseProjection = pendingAssessments.reduce((sum, assessment) => (
-        sum + (assessment.weight * (recommendations[assessment.id] ?? 0)) / 100
+        sum + (assessment.weight * recommendations[assessment.id]) / 100
     ), currentContribution);
 
-    let remainingDeficit = Math.max(0, targetPercentage - baseProjection);
-    remainingDeficit = distributeUniformScores(pendingAssessments, recommendations, remainingDeficit);
-    distributeHistoryScores(historyAssessments, recommendations, remainingDeficit);
+    if (baseProjection < targetPercentage - 0.0001) {
+        let remaining = targetPercentage - baseProjection;
+        let active = pendingAssessments.filter((assessment) => recommendations[assessment.id] < 100);
+
+        while (active.length > 0 && remaining > 0.0001) {
+            const activeWeight = active.reduce((sum, assessment) => sum + assessment.weight, 0);
+            if (activeWeight <= 0) break;
+
+            const delta = (remaining * 100) / activeWeight;
+            const saturating = active.filter((assessment) => recommendations[assessment.id] + delta >= 100);
+
+            if (saturating.length > 0) {
+                saturating.forEach((assessment) => {
+                    remaining = Math.max(0, remaining - (assessment.weight * (100 - recommendations[assessment.id])) / 100);
+                    recommendations[assessment.id] = 100;
+                });
+                active = active.filter((assessment) => recommendations[assessment.id] < 100);
+            } else {
+                active.forEach((assessment) => {
+                    recommendations[assessment.id] = clampScore(recommendations[assessment.id] + delta);
+                });
+                remaining = 0;
+            }
+        }
+    } else if (baseProjection > targetPercentage + 0.0001) {
+        let excess = baseProjection - targetPercentage;
+        let active = pendingAssessments.filter((assessment) => recommendations[assessment.id] > 0);
+
+        while (active.length > 0 && excess > 0.0001) {
+            const activeWeight = active.reduce((sum, assessment) => sum + assessment.weight, 0);
+            if (activeWeight <= 0) break;
+
+            const delta = (excess * 100) / activeWeight;
+            const saturating = active.filter((assessment) => recommendations[assessment.id] - delta <= 0);
+
+            if (saturating.length > 0) {
+                saturating.forEach((assessment) => {
+                    excess = Math.max(0, excess - (assessment.weight * recommendations[assessment.id]) / 100);
+                    recommendations[assessment.id] = 0;
+                });
+                active = active.filter((assessment) => recommendations[assessment.id] > 0);
+            } else {
+                active.forEach((assessment) => {
+                    recommendations[assessment.id] = clampScore(recommendations[assessment.id] - delta);
+                });
+                excess = 0;
+            }
+        }
+    }
+
     return Object.fromEntries(
-        Object.entries(recommendations).map(([assessmentId, score]) => [assessmentId, ceilScore(score)]),
+        Object.entries(recommendations).map(([assessmentId, score]) => [
+            assessmentId,
+            baseProjection <= targetPercentage ? ceilScore(score) : floorScore(score),
+        ]),
     );
 };
 
 export const buildPlanModeResult = (
     gradebook: CourseGradebook,
     targetGpa: number,
+    targetPercentage: number | null,
     whatIfScores: Record<string, number>,
 ): ComputedPlanModeResult => {
     const pendingAssessments = getPendingAssessments(gradebook);
     const currentContribution = calculateCurrentScorePercentage(gradebook);
-    const targetPercentage = resolveTargetPercentageForGpa(targetGpa, gradebook.scaling_table);
     const projectedPercentage = roundValue(
         pendingAssessments.reduce((sum, assessment) => (
             sum + (assessment.weight * clampScore(whatIfScores[assessment.id] ?? 0)) / 100
@@ -511,7 +528,7 @@ export const buildPlanModeResult = (
         projected_gpa: calculateGradebookGpa(projectedPercentage, gradebook.scaling_table) ?? 0,
         target_gpa: targetGpa,
         target_percentage: targetPercentage,
-        required_average: calculateRequiredAverage(gradebook, targetGpa),
+        required_average: calculateRequiredAverage(gradebook, targetPercentage),
         remaining_weight: roundValue(pendingAssessments.reduce((sum, assessment) => sum + assessment.weight, 0), 3),
         is_feasible: targetPercentage !== null && shortfall <= 0.01,
         shortfall_percentage: shortfall,

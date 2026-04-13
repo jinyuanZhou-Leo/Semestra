@@ -374,12 +374,12 @@ export const AssessmentDialog: React.FC<AssessmentDialogProps> = ({
                 </div>
 
                 <DialogFooter className="w-full">
-                    <div className="flex items-center gap-2">
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                        <Button type="button" onClick={() => void onSave()} disabled={isSaving}>
-                            {draft.id ? 'Save Changes' : draft.source_mode === 'lms' ? `Add ${selectedLmsCount || ''} ${selectedLmsCount === 1 ? 'Assessment' : 'Assessments'}`.trim() : 'Add Assessment'}
-                        </Button>
-                    </div>
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                        Cancel
+                    </Button>
+                    <Button type="button" onClick={() => void onSave()} disabled={isSaving}>
+                        {draft.id ? 'Save Changes' : draft.source_mode === 'lms' ? `Add ${selectedLmsCount || ''} ${selectedLmsCount === 1 ? 'Assessment' : 'Assessments'}`.trim() : 'Add Assessment'}
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

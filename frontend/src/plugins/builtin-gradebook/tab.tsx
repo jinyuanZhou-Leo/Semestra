@@ -9,10 +9,12 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FlaskConical, GraduationCap, Pencil, Percent, Plus, Sparkles, Target, Trash2 } from 'lucide-react';
+import { format, isValid, parseISO } from 'date-fns';
+import { ArrowRightLeft, CalendarDays, FlaskConical, GraduationCap, Pencil, Percent, Plus, Sparkles, Target, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
+import { DataTable, DataTableActionMenu, type ColumnDef } from '@/components/DataTable';
 import api, {
     type CourseGradebook,
     type GradebookAssessment,
@@ -29,10 +31,10 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 import {
     Dialog,
@@ -42,25 +44,21 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { useCourseData } from '@/contexts/CourseDataContext';
 import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
 import { usePluginUiState } from '@/plugin-system';
 import { publishTimetableScheduleChange } from '../builtin-event-core/shared/publishTimetableScheduleChange';
 import { AssessmentDialog, createAssessmentDraft, type AssessmentDraft } from './components/AssessmentDialog';
-import { SortableHead } from './components/SortableHead';
 import {
     BUILTIN_GRADEBOOK_TAB_TYPE,
     buildComputedGradebookSummary,
@@ -69,6 +67,7 @@ import {
     calculateGradebookGpa,
     hasCompleteGradebookWeight,
     formatGradebookDate,
+    formatGradebookDateInput,
     formatGradebookGpaPercentage,
     formatPercent,
     getApiErrorMessage,
@@ -78,35 +77,18 @@ import {
     getRelativeDueText,
     isAssessmentOverdue,
     resolveTargetPercentageForGpa,
-    sortAssessments,
-    type GradebookSortDirection,
-    type GradebookSortKey,
 } from './shared';
-
-const DEFAULT_SORT_KEY: GradebookSortKey = 'due_date';
-const DEFAULT_SORT_DIRECTION: GradebookSortDirection = 'none';
 type TargetInputMode = 'gpa' | 'percentage';
+
+interface ParsedTargetDraftValue {
+    targetGpa: number;
+    targetPercentage: number | null;
+}
 
 interface GradebookPlanModeUiState {
     planMode: boolean;
     whatIfDrafts: Record<string, string>;
     targetInputMode: TargetInputMode;
-}
-
-interface GradebookAssessmentViewUiState {
-    sortKey: GradebookSortKey;
-    sortDirection: GradebookSortDirection;
-}
-
-function getNextSortDirection(direction: GradebookSortDirection): GradebookSortDirection {
-    switch (direction) {
-        case 'none':
-            return 'asc';
-        case 'asc':
-            return 'desc';
-        case 'desc':
-            return 'none';
-    }
 }
 
 const publishGradebookAssessmentCalendarRefresh = async (courseId: string, semesterId?: string) => {
@@ -122,6 +104,19 @@ const parseOptionalNumber = (value: string): number | null => {
     if (!value.trim()) return null;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseDraftDate = (value: string): Date | undefined => {
+    if (!value) return undefined;
+    const parsed = parseISO(value);
+    return isValid(parsed) ? parsed : undefined;
+};
+
+const isBoundedPercentageInput = (value: string) => {
+    if (!value.trim()) return true;
+    if (!/^\d*\.?\d*$/.test(value)) return false;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100;
 };
 
 const getGradebookAssessmentFingerprint = (assessment: Pick<GradebookAssessment, 'title' | 'due_date'>) => {
@@ -144,14 +139,20 @@ const parseTargetDraftValue = (
     gradebook: CourseGradebook,
     draftValue: string,
     inputMode: TargetInputMode,
-) => {
+) : ParsedTargetDraftValue | null => {
     const parsed = Number(draftValue);
     if (!Number.isFinite(parsed)) return null;
     if (inputMode === 'percentage') {
         if (parsed < 0 || parsed > 100) return null;
-        return calculateGradebookGpa(parsed, gradebook.scaling_table);
+        return {
+            targetGpa: calculateGradebookGpa(parsed, gradebook.scaling_table) ?? 0,
+            targetPercentage: parsed,
+        };
     }
-    return parsed;
+    return {
+        targetGpa: parsed,
+        targetPercentage: resolveTargetPercentageForGpa(parsed, gradebook.scaling_table),
+    };
 };
 
 const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
@@ -164,23 +165,19 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         whatIfDrafts: {},
         targetInputMode: 'gpa',
     }));
-    const {
-        state: assessmentViewState,
-        setState: setAssessmentViewState,
-    } = usePluginUiState<GradebookAssessmentViewUiState>('gradebook-assessment-view', () => ({
-        sortKey: DEFAULT_SORT_KEY,
-        sortDirection: DEFAULT_SORT_DIRECTION,
-    }));
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
     const [isMutating, setIsMutating] = React.useState(false);
     const [assessmentDraft, setAssessmentDraft] = React.useState<AssessmentDraft | null>(null);
     const [assessmentDialogOpen, setAssessmentDialogOpen] = React.useState(false);
+    const [pendingDeleteAssessment, setPendingDeleteAssessment] = React.useState<GradebookAssessment | null>(null);
     const [scoreDrafts, setScoreDrafts] = React.useState<Record<string, string>>({});
+    const [weightDrafts, setWeightDrafts] = React.useState<Record<string, string>>({});
+    const [dueDateDrafts, setDueDateDrafts] = React.useState<Record<string, string>>({});
+    const [editingWeightAssessmentId, setEditingWeightAssessmentId] = React.useState<string | null>(null);
+    const [editingDueDateAssessmentId, setEditingDueDateAssessmentId] = React.useState<string | null>(null);
     const [planModeIntroOpen, setPlanModeIntroOpen] = React.useState(false);
     const [planModeExitOpen, setPlanModeExitOpen] = React.useState(false);
     const [targetGpaDraft, setTargetGpaDraft] = React.useState('');
-    const sortKey = assessmentViewState.sortKey;
-    const sortDirection = assessmentViewState.sortDirection;
     const gradebookQuery = useCourseGradebookQuery(courseId);
     const gradebookMutation = useCourseGradebookMutation(courseId);
     const gradebook = gradebookQuery.data ?? null;
@@ -225,11 +222,28 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 
     React.useEffect(() => {
         if (!gradebook) return;
-        setTargetGpaDraft(formatTargetDraftValue(gradebook, targetInputMode));
+        setTargetGpaDraft((currentValue) => {
+            if (targetInputMode === 'percentage' && currentValue.trim()) {
+                return currentValue;
+            }
+            return formatTargetDraftValue(gradebook, targetInputMode);
+        });
         setScoreDrafts(Object.fromEntries(
             gradebook.assessments.map((assessment) => [
                 assessment.id,
                 assessment.score === null || assessment.score === undefined ? '' : String(assessment.score),
+            ]),
+        ));
+        setWeightDrafts(Object.fromEntries(
+            gradebook.assessments.map((assessment) => [
+                assessment.id,
+                String(assessment.weight),
+            ]),
+        ));
+        setDueDateDrafts(Object.fromEntries(
+            gradebook.assessments.map((assessment) => [
+                assessment.id,
+                formatGradebookDateInput(assessment.due_date),
             ]),
         ));
     }, [gradebook, targetInputMode]);
@@ -308,28 +322,8 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         if (!hasCompleteGradebookWeight(gradebook)) return null;
         const parsed = parseTargetDraftValue(gradebook, targetGpaDraft, targetInputMode);
         if (parsed === null) return null;
-        return buildPlanModeResult(gradebook, parsed, parsedWhatIfScores);
+        return buildPlanModeResult(gradebook, parsed.targetGpa, parsed.targetPercentage, parsedWhatIfScores);
     }, [gradebook, parsedWhatIfScores, planMode, targetGpaDraft, targetInputMode]);
-
-    const filteredAssessments = React.useMemo(() => {
-        if (!gradebook) return [];
-        return sortAssessments(gradebook.assessments, categoriesById, sortKey, sortDirection);
-    }, [categoriesById, gradebook, sortDirection, sortKey]);
-
-    const requestSort = React.useCallback((nextSortKey: GradebookSortKey) => {
-        if (assessmentViewState.sortKey === nextSortKey) {
-            setAssessmentViewState((current) => ({
-                ...current,
-                sortDirection: getNextSortDirection(current.sortDirection),
-            }));
-            return;
-        }
-        setAssessmentViewState((current) => ({
-            ...current,
-            sortKey: nextSortKey,
-            sortDirection: 'asc',
-        }));
-    }, [assessmentViewState.sortKey, setAssessmentViewState]);
 
     const enterPlanMode = React.useCallback(() => {
         if (!hasCompleteWeight) {
@@ -453,8 +447,8 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             setTargetGpaDraft(formatTargetDraftValue(gradebook, targetInputMode));
             return;
         }
-        if (parsed === gradebook.target_gpa) return;
-        await commitGradebook(api.updateCourseGradebookPreferences(courseId, { target_gpa: parsed }));
+        if (parsed.targetGpa === gradebook.target_gpa) return;
+        await commitGradebook(api.updateCourseGradebookPreferences(courseId, { target_gpa: parsed.targetGpa }));
     }, [commitGradebook, courseId, gradebook, targetGpaDraft, targetInputMode]);
 
     const handleRunPlan = React.useCallback(async () => {
@@ -476,7 +470,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 : 'Enter a valid GPA target before running the plan.');
             return;
         }
-        const suggestions = buildSuggestedWhatIfScores(gradebook, parsed);
+        const suggestions = buildSuggestedWhatIfScores(gradebook, parsed.targetPercentage);
         updatePlanModeState({
             whatIfDrafts: Object.fromEntries(
                 Object.entries(suggestions).map(([assessmentId, score]) => [assessmentId, String(score)]),
@@ -488,7 +482,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const handleToggleTargetInputMode = React.useCallback(() => {
         if (!gradebook) return;
         const nextInputMode: TargetInputMode = targetInputMode === 'gpa' ? 'percentage' : 'gpa';
-        const parsedTargetGpa = parseTargetDraftValue(gradebook, targetGpaDraft, targetInputMode) ?? gradebook.target_gpa;
+        const parsedTargetGpa = parseTargetDraftValue(gradebook, targetGpaDraft, targetInputMode)?.targetGpa ?? gradebook.target_gpa;
         updatePlanModeState({ targetInputMode: nextInputMode });
         setTargetGpaDraft(formatTargetDraftValue(gradebook, nextInputMode, parsedTargetGpa));
     }, [gradebook, targetGpaDraft, targetInputMode, updatePlanModeState]);
@@ -496,6 +490,14 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const handleSaveScore = React.useCallback(async (assessment: GradebookAssessment) => {
         if (!courseId || planMode) return;
         const nextValue = parseOptionalNumber(scoreDrafts[assessment.id] ?? '');
+        if (nextValue !== null && (nextValue < 0 || nextValue > 100)) {
+            setScoreDrafts((current) => ({
+                ...current,
+                [assessment.id]: assessment.score === null || assessment.score === undefined ? '' : String(assessment.score),
+            }));
+            toast.error('Score must stay between 0 and 100.');
+            return;
+        }
         if (nextValue === assessment.score) return;
         await commitGradebook(api.updateCourseGradebookAssessment(courseId, assessment.id, {
             score: nextValue,
@@ -503,6 +505,315 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             points_possible: null,
         }));
     }, [commitGradebook, courseId, planMode, scoreDrafts]);
+
+    const handleSaveWeight = React.useCallback(async (assessment: GradebookAssessment) => {
+        if (!courseId || planMode) return;
+        const rawValue = weightDrafts[assessment.id] ?? '';
+        const parsedWeight = rawValue.trim() ? Number(rawValue) : 0;
+        if (!Number.isFinite(parsedWeight) || parsedWeight < 0 || parsedWeight > 100) {
+            setWeightDrafts((current) => ({
+                ...current,
+                [assessment.id]: String(assessment.weight),
+            }));
+            toast.error('Weight must stay between 0 and 100.');
+            return;
+        }
+        setEditingWeightAssessmentId(null);
+        if (parsedWeight === assessment.weight) return;
+        await commitGradebook(api.updateCourseGradebookAssessment(courseId, assessment.id, {
+            weight: parsedWeight,
+        }));
+    }, [commitGradebook, courseId, planMode, weightDrafts]);
+
+    const handleSaveDueDate = React.useCallback(async (assessment: GradebookAssessment, nextDueDate: string) => {
+        if (!courseId || planMode) return;
+        setDueDateDrafts((current) => ({
+            ...current,
+            [assessment.id]: nextDueDate,
+        }));
+        setEditingDueDateAssessmentId(null);
+        const normalizedDueDate = nextDueDate || '';
+        const currentDueDate = formatGradebookDateInput(assessment.due_date);
+        if (normalizedDueDate === currentDueDate) {
+            return;
+        }
+        const didSave = await commitGradebook(api.updateCourseGradebookAssessment(courseId, assessment.id, {
+            due_date: normalizedDueDate || null,
+        }));
+        if (!didSave) {
+            setDueDateDrafts((current) => ({
+                ...current,
+                [assessment.id]: currentDueDate,
+            }));
+            return;
+        }
+        publishGradebookAssessmentCalendarRefresh(courseId, course?.semester_id);
+    }, [commitGradebook, course?.semester_id, courseId, planMode]);
+
+    const canManageAssessments = !planMode;
+    const assessmentColumns: ColumnDef<GradebookAssessment>[] = !gradebook ? [] : [
+            {
+                key: 'title',
+                label: 'Assessment',
+                fit: 'fill',
+                minWidth: 220,
+                sortable: (left, right) => left.title.localeCompare(right.title),
+                cellClassName: 'py-3',
+                cell: (assessment) => (
+                    <div className="font-medium text-foreground">{assessment.title}</div>
+                ),
+            },
+            {
+                key: 'category',
+                label: 'Category',
+                width: 150,
+                minWidth: 140,
+                sortable: (left, right) => {
+                    const leftName = categoriesById.get(left.category_id ?? '')?.name ?? '';
+                    const rightName = categoriesById.get(right.category_id ?? '')?.name ?? '';
+                    return leftName.localeCompare(rightName);
+                },
+                cellClassName: 'py-3',
+                cell: (assessment) => {
+                    const category = getCategoryById(gradebook.categories, assessment.category_id);
+                    return category ? (
+                        <Badge
+                            variant="outline"
+                            className={cn('select-none border-0 px-2.5 py-0.5 text-xs font-medium', getCategoryBadgeClassName(category.color_token))}
+                            style={getCategoryBadgeStyle(category.color_token)}
+                        >
+                            {category.name}
+                        </Badge>
+                    ) : (
+                        <span className="text-xs text-muted-foreground/60">Uncategorized</span>
+                    );
+                },
+            },
+            {
+                key: 'due_date',
+                label: 'Due',
+                width: 156,
+                minWidth: 156,
+                sortable: (left, right) => (left.due_date ?? '9999-12-31').localeCompare(right.due_date ?? '9999-12-31'),
+                cellClassName: 'py-3',
+                cell: (assessment) => {
+                    const dueDateValue = dueDateDrafts[assessment.id] ?? formatGradebookDateInput(assessment.due_date);
+                    const dueDate = parseDraftDate(dueDateValue);
+                    const overdue = assessment.due_date ? isAssessmentOverdue({
+                        ...assessment,
+                        due_date: dueDateValue || null,
+                    }) : false;
+                    return (
+                        <Popover
+                            open={editingDueDateAssessmentId === assessment.id}
+                            onOpenChange={(open) => {
+                                setEditingDueDateAssessmentId(open ? assessment.id : null);
+                            }}
+                        >
+                            <PopoverTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className="h-auto w-full justify-start px-0 py-0 text-left hover:bg-transparent"
+                                    disabled={!canManageAssessments}
+                                >
+                                    <div className="flex min-h-8 w-full items-center">
+                                        {dueDateValue ? (
+                                            <div className="min-w-0 space-y-0.5">
+                                                <div className={cn('text-sm', overdue ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-foreground')}>
+                                                    {formatGradebookDate(dueDateValue)}
+                                                </div>
+                                                <div className="text-[11px] text-muted-foreground">{getRelativeDueText(dueDateValue)}</div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex min-h-8 items-center gap-2 text-xs text-muted-foreground/60">
+                                                <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                                                <span>No due date</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    autoFocus
+                                    mode="single"
+                                    selected={dueDate}
+                                    onSelect={(date) => {
+                                        void handleSaveDueDate(
+                                            assessment,
+                                            date ? format(date, 'yyyy-MM-dd') : '',
+                                        );
+                                    }}
+                                />
+                                {dueDateValue ? (
+                                    <div className="flex justify-end border-t px-3 py-2">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                void handleSaveDueDate(assessment, '');
+                                            }}
+                                        >
+                                            Clear
+                                        </Button>
+                                    </div>
+                                ) : null}
+                            </PopoverContent>
+                        </Popover>
+                    );
+                },
+            },
+            {
+                key: 'weight',
+                label: 'Weight',
+                width: 96,
+                minWidth: 96,
+                align: 'right',
+                sortable: (left, right) => left.weight - right.weight,
+                cellClassName: 'py-3',
+                cell: (assessment) => (
+                    <div className="flex justify-end">
+                        {editingWeightAssessmentId === assessment.id ? (
+                            <Input
+                                autoFocus
+                                className="ml-auto h-8 w-24 text-right tabular-nums focus-visible:bg-background"
+                                inputMode="decimal"
+                                value={weightDrafts[assessment.id] ?? ''}
+                                disabled={!canManageAssessments || isMutating}
+                                onChange={(event) => {
+                                    const nextValue = event.target.value;
+                                    if (!isBoundedPercentageInput(nextValue)) {
+                                        return;
+                                    }
+                                    setWeightDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
+                                }}
+                                onBlur={() => {
+                                    void handleSaveWeight(assessment);
+                                }}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        void handleSaveWeight(assessment);
+                                    }
+                                    if (event.key === 'Escape') {
+                                        setWeightDrafts((current) => ({
+                                            ...current,
+                                            [assessment.id]: String(assessment.weight),
+                                        }));
+                                        setEditingWeightAssessmentId(null);
+                                    }
+                                }}
+                            />
+                        ) : (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                className="ml-auto h-auto px-0 py-0 text-right tabular-nums hover:bg-transparent"
+                                disabled={!canManageAssessments}
+                                onClick={() => setEditingWeightAssessmentId(assessment.id)}
+                            >
+                                {formatPercent(assessment.weight)}
+                            </Button>
+                        )}
+                    </div>
+                ),
+            },
+            {
+                key: 'score',
+                label: planMode ? 'What If' : 'Score',
+                width: 112,
+                minWidth: 112,
+                align: 'right',
+                sortable: (left, right) => (left.score ?? -1) - (right.score ?? -1),
+                cellClassName: 'py-3',
+                cell: (assessment) => {
+                    const isRealOnly = assessment.score !== null;
+                    return (
+                        <Input
+                            className={cn(
+                                'ml-auto h-8 w-24 text-right tabular-nums focus-visible:bg-background',
+                                planMode
+                                    ? isRealOnly
+                                        ? 'border-border/60 bg-muted/30 text-muted-foreground'
+                                        : 'border-amber-400/80 bg-amber-50/80 text-amber-950 dark:border-amber-500/50 dark:bg-amber-950/20 dark:text-amber-50'
+                                    : 'border-border/60 bg-muted/20',
+                            )}
+                            value={planMode
+                                ? isRealOnly
+                                    ? (scoreDrafts[assessment.id] ?? '')
+                                    : (whatIfDrafts[assessment.id] ?? '')
+                                : (scoreDrafts[assessment.id] ?? '')}
+                            inputMode="decimal"
+                            disabled={isMutating || (planMode && isRealOnly)}
+                            placeholder={planMode ? 'What if' : '--'}
+                            onChange={(event) => {
+                                const nextValue = event.target.value;
+                                if (planMode) {
+                                    setPlanModeUiState((currentState) => ({
+                                        ...currentState,
+                                        whatIfDrafts: {
+                                            ...currentState.whatIfDrafts,
+                                            [assessment.id]: nextValue,
+                                        },
+                                    }));
+                                    return;
+                                }
+                                if (!isBoundedPercentageInput(nextValue)) {
+                                    return;
+                                }
+                                setScoreDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
+                            }}
+                            onBlur={() => {
+                                if (!planMode) {
+                                    void handleSaveScore(assessment);
+                                }
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' && !planMode) {
+                                    event.preventDefault();
+                                    void handleSaveScore(assessment);
+                                }
+                            }}
+                        />
+                    );
+                },
+            },
+            {
+                key: 'actions',
+                label: 'Actions',
+                width: 88,
+                minWidth: 88,
+                align: 'right',
+                cell: (assessment) => (
+                    <DataTableActionMenu
+                        triggerLabel={`Open actions for ${assessment.title}`}
+                        disabled={!canManageAssessments}
+                    >
+                        <DropdownMenuItem
+                            disabled={!canManageAssessments}
+                            onClick={() => {
+                                setAssessmentDraft(createAssessmentDraft(gradebook, assessment));
+                                setAssessmentDialogOpen(true);
+                            }}
+                        >
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            variant="destructive"
+                            disabled={!canManageAssessments}
+                            onClick={() => setPendingDeleteAssessment(assessment)}
+                        >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                        </DropdownMenuItem>
+                    </DataTableActionMenu>
+                    ),
+            },
+        ];
 
     if (!courseId) {
         return (
@@ -539,7 +850,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             />
         );
     }
-    const canManageAssessments = !planMode;
     const planModeSwitchLabel = 'Plan Mode';
     const toolbarSecondarySlotClassName = cn(
         'flex min-w-0 shrink items-center overflow-hidden transition-[max-width,opacity] duration-200',
@@ -718,11 +1028,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                     aria-label={targetInputMode === 'gpa' ? 'Switch target input to GPA Percentage' : 'Switch target input to GPA'}
                                     title={targetInputMode === 'gpa' ? 'Switch to GPA Percentage' : 'Switch to GPA'}
                                 >
-                                    {targetInputMode === 'gpa' ? (
-                                        <Percent className="h-3.5 w-3.5 shrink-0" />
-                                    ) : (
-                                        <GraduationCap className="h-3.5 w-3.5 shrink-0" />
-                                    )}
+                                    <ArrowRightLeft className="h-3.5 w-3.5 shrink-0" />
                                 </Button>
                             </div>
                         </div>
@@ -767,7 +1073,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 </div>
 
                 <div className="min-h-[400px] rounded-md border bg-card flex flex-col overflow-hidden">
-                    {filteredAssessments.length === 0 ? (
+                    {gradebook.assessments.length === 0 ? (
                         <AppEmptyState
                             scenario="create"
                             size="section"
@@ -790,163 +1096,20 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                             ) : undefined}
                         />
                     ) : (
-                            <div className="max-h-[600px] overflow-hidden">
-                                <Table>
-                                    <TableHeader className="sticky top-0 bg-card">
-                                    <TableRow className="hover:bg-transparent">
-                                        <SortableHead label="Assessment" sortKey="title" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} />
-                                        <SortableHead label="Category" sortKey="category" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} />
-                                        <SortableHead label="Due" sortKey="due_date" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} />
-                                        <SortableHead label="Weight" sortKey="weight" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} align="right" />
-                                        <SortableHead label={planMode ? 'What If' : 'Score'} sortKey="score" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} align="right" />
-                                        <TableHead className="text-right">
-                                            <div className="flex items-center justify-end">Actions</div>
-                                        </TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filteredAssessments.map((assessment) => {
-                                        const category = getCategoryById(gradebook.categories, assessment.category_id);
-                                        const overdue = isAssessmentOverdue(assessment);
-                                        const isRealOnly = assessment.score !== null;
-                                        return (
-                                            <TableRow key={assessment.id} className="group">
-                                                <TableCell className="py-3">
-                                                    <div className="font-medium text-foreground">{assessment.title}</div>
-                                                </TableCell>
-                                                <TableCell className="py-3">
-                                                    {category ? (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className={cn('select-none border-0 px-2.5 py-0.5 text-xs font-medium', getCategoryBadgeClassName(category.color_token))}
-                                                            style={getCategoryBadgeStyle(category.color_token)}
-                                                        >
-                                                            {category.name}
-                                                        </Badge>
-                                                    ) : (
-                                                        <span className="text-xs text-muted-foreground/60">Uncategorized</span>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="py-3">
-                                                    {assessment.due_date ? (
-                                                        <div className="space-y-0.5">
-                                                            <div className={cn('text-sm', overdue ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-foreground')}>
-                                                                {formatGradebookDate(assessment.due_date)}
-                                                            </div>
-                                                            <div className="text-[11px] text-muted-foreground">{getRelativeDueText(assessment.due_date)}</div>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-xs text-muted-foreground/60">No due date</span>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="py-3 text-right tabular-nums">{formatPercent(assessment.weight)}</TableCell>
-                                                <TableCell className="py-3 text-right">
-                                                    <Input
-                                                        className={cn(
-                                                            'ml-auto h-8 w-24 text-right tabular-nums focus-visible:bg-background',
-                                                            planMode
-                                                                ? isRealOnly
-                                                                    ? 'border-border/60 bg-muted/30 text-muted-foreground'
-                                                                    : 'border-amber-400/80 bg-amber-50/80 text-amber-950 dark:border-amber-500/50 dark:bg-amber-950/20 dark:text-amber-50'
-                                                                : 'border-border/60 bg-muted/20',
-                                                        )}
-                                                        value={planMode
-                                                            ? isRealOnly
-                                                                ? (scoreDrafts[assessment.id] ?? '')
-                                                                : (whatIfDrafts[assessment.id] ?? '')
-                                                            : (scoreDrafts[assessment.id] ?? '')}
-                                                        inputMode="decimal"
-                                                        disabled={isMutating || (planMode && isRealOnly)}
-                                                        placeholder={planMode ? 'What if' : '--'}
-                                                        onChange={(event) => {
-                                                            const nextValue = event.target.value;
-                                                            if (planMode) {
-                                                                setPlanModeUiState((currentState) => ({
-                                                                    ...currentState,
-                                                                    whatIfDrafts: {
-                                                                        ...currentState.whatIfDrafts,
-                                                                        [assessment.id]: nextValue,
-                                                                    },
-                                                                }));
-                                                                return;
-                                                            }
-                                                            setScoreDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
-                                                        }}
-                                                        onBlur={() => {
-                                                            if (!planMode) {
-                                                                void handleSaveScore(assessment);
-                                                            }
-                                                        }}
-                                                        onKeyDown={(event) => {
-                                                            if (event.key === 'Enter' && !planMode) {
-                                                                event.preventDefault();
-                                                                void handleSaveScore(assessment);
-                                                            }
-                                                        }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-1">
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="select-none"
-                                                            aria-label={`Edit assessment ${assessment.title}`}
-                                                            disabled={!canManageAssessments}
-                                                            onClick={() => {
-                                                                setAssessmentDraft(createAssessmentDraft(gradebook, assessment));
-                                                                setAssessmentDialogOpen(true);
-                                                            }}
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Button>
-                                                        <AlertDialog>
-                                                            <AlertDialogTrigger asChild>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="destructive"
-                                                                    size="icon"
-                                                                    className="select-none"
-                                                                    aria-label={`Delete assessment ${assessment.title}`}
-                                                                    disabled={!canManageAssessments}
-                                                                >
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </AlertDialogTrigger>
-                                                            <AlertDialogContent size="sm">
-                                                                <AlertDialogHeader>
-                                                                    <AlertDialogTitle>Delete assessment {assessment.title}?</AlertDialogTitle>
-                                                                    <AlertDialogDescription>
-                                                                        This action cannot be undone.
-                                                                    </AlertDialogDescription>
-                                                                </AlertDialogHeader>
-                                                                <AlertDialogFooter>
-                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                    <AlertDialogAction
-                                                                        variant="destructive"
-                                                                        onClick={() => {
-                                                                            setAssessmentDraft(createAssessmentDraft(gradebook, assessment));
-                                                                            void commitGradebook(api.deleteCourseGradebookAssessment(courseId, assessment.id))
-                                                                                .then((didDelete) => {
-                                                                                    if (!didDelete) return;
-                                                                                    publishGradebookAssessmentCalendarRefresh(courseId, course?.semester_id);
-                                                                                });
-                                                                        }}
-                                                                    >
-                                                                        Delete
-                                                                    </AlertDialogAction>
-                                                                </AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                    </TableBody>
-                                </Table>
-                            </div>
+                        <DataTable
+                            title="Assessments"
+                            description="Track weights, due dates, and scores for this course."
+                            showHeader={false}
+                            items={gradebook.assessments}
+                            columns={assessmentColumns}
+                            getRowKey={(assessment) => assessment.id}
+                            minWidthClassName="min-w-[54rem]"
+                            maxBodyHeight={600}
+                            freezeHeader
+                            rootClassName="flex-1 space-y-0"
+                            shellClassName="rounded-none border-0"
+                            tableClassName="[&_th]:bg-card [&_td]:bg-card"
+                        />
                     )}
                 </div>
             </section>
@@ -970,6 +1133,36 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                     onSave={handleSaveAssessment}
                 />
             ) : null}
+
+            <AlertDialog open={pendingDeleteAssessment !== null} onOpenChange={(open) => !open && setPendingDeleteAssessment(null)}>
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {pendingDeleteAssessment ? `Delete assessment ${pendingDeleteAssessment.title}?` : 'Delete assessment?'}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => {
+                                if (!pendingDeleteAssessment) return;
+                                void commitGradebook(api.deleteCourseGradebookAssessment(courseId, pendingDeleteAssessment.id))
+                                    .then((didDelete) => {
+                                        if (!didDelete) return;
+                                        publishGradebookAssessmentCalendarRefresh(courseId, course?.semester_id);
+                                        setPendingDeleteAssessment(null);
+                                    });
+                            }}
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <Dialog open={planModeIntroOpen} onOpenChange={setPlanModeIntroOpen}>
                 <DialogContent className="sm:max-w-[440px]">

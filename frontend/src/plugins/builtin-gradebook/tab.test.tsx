@@ -1,6 +1,6 @@
 // input:  [Vitest + Testing Library, builtin-gradebook tab runtime, plugin runtime scope, mocked course and gradebook hooks, and dialog-backed plan-mode UI]
-// output: [regression tests validating persisted gradebook plan-mode, What If UI-state, assessment sort restoration, and target input-mode switching]
-// pos:    [plugin-level regression tests for builtin-gradebook tab-local UI-state persistence and toolbar target-format behavior]
+// output: [regression tests validating persisted gradebook plan-mode, What If UI-state, assessment sort restoration, target input-mode switching, and exact-percentage auto-fill]
+// pos:    [plugin-level regression tests for builtin-gradebook tab-local UI-state persistence, toolbar target-format behavior, and exact percentage plan-target handling]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -282,5 +282,58 @@ describe('BuiltinGradebookTab', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Auto-fill' }));
 
         expect(toast.error).toHaveBeenCalledWith('Enter a GPA target before running Auto-fill.');
+    });
+
+    it('auto-fill uses the exact percentage target in percentage mode', async () => {
+        const mixedGradebook = buildGradebook({
+            assessments: [
+                {
+                    ...assessments[0]!,
+                    weight: 25,
+                    score: 82,
+                },
+                {
+                    ...assessments[1]!,
+                    weight: 25,
+                },
+                {
+                    id: 'assessment-3',
+                    category_id: 'category-1',
+                    title: 'Final Exam',
+                    due_date: '2026-04-20',
+                    weight: 50,
+                    score: null,
+                    points_earned: null,
+                    points_possible: null,
+                    order_index: 2,
+                },
+            ],
+        });
+
+        vi.mocked(courseGradebookQuery.useCourseGradebookQuery).mockReturnValue({
+            data: mixedGradebook,
+            isLoading: false,
+            error: null,
+            refetch: vi.fn(),
+        } as unknown as ReturnType<typeof courseGradebookQuery.useCourseGradebookQuery>);
+        vi.mocked(courseGradebookQuery.useCourseGradebookMutation).mockReturnValue({
+            mutateAsync: vi.fn(async (mutator: () => Promise<CourseGradebook>) => mutator()),
+        } as unknown as ReturnType<typeof courseGradebookQuery.useCourseGradebookMutation>);
+        vi.spyOn(api, 'updateCourseGradebookPreferences').mockResolvedValue(mixedGradebook);
+
+        renderGradebookTab();
+
+        fireEvent.click(screen.getByLabelText('Toggle Plan Mode'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Enter Plan Mode' }));
+        fireEvent.click(await screen.findByLabelText('Switch target input to GPA Percentage'));
+
+        const targetInput = await screen.findByLabelText('Target %');
+        fireEvent.change(targetInput, { target: { value: '89' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Auto-fill' }));
+
+        await waitFor(() => {
+            expect(screen.getAllByDisplayValue('92')).toHaveLength(2);
+        });
+        expect(api.updateCourseGradebookPreferences).toHaveBeenCalledWith('course-1', { target_gpa: 3.9 });
     });
 });
