@@ -192,6 +192,38 @@ def build_course_resource_list_response(db: Session, current_user: models.User, 
     )
 
 
+def build_semester_resource_list_response(
+    db: Session,
+    current_user: models.User,
+    semester_id: str,
+) -> schemas.SemesterResourcesResponse:
+    quota = course_resources.get_user_quota_snapshot(db, current_user.id)
+    courses = (
+        db.query(models.Course)
+        .filter(models.Course.semester_id == semester_id)
+        .order_by(models.Course.name.asc())
+        .all()
+    )
+    course_folders = [
+        schemas.CourseFolderWithResources(
+            course_id=course.id,
+            course_name=course.name,
+            course_alias=course.alias,
+            course_category=course.category,
+            course_color=course.color,
+            files=course_resources.list_course_resources(db, course.id),
+        )
+        for course in courses
+    ]
+    return schemas.SemesterResourcesResponse(
+        semester_id=semester_id,
+        total_bytes_used=quota.total_bytes_used,
+        total_bytes_limit=quota.total_bytes_limit,
+        remaining_bytes=quota.remaining_bytes,
+        course_folders=course_folders,
+    )
+
+
 def get_event_type_or_404(db: Session, course_id: str, event_type_code: str) -> schemas.CourseEventType:
     course = db.query(models.Course).filter(models.Course.id == course_id).first()
     normalized_code = str(event_type_code or "").strip().upper()

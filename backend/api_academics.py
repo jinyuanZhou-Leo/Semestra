@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 import auth
 from api_common import (
     build_course_resource_list_response,
+    build_semester_resource_list_response,
     error_detail,
     get_owned_course,
     get_owned_program,
@@ -396,6 +397,16 @@ def read_semester_gradebook(
         )
     except Exception as exc:
         raise_gradebook_http_error(exc)
+
+
+@router.get("/semesters/{semester_id}/resources", response_model=schemas.SemesterResourcesResponse)
+def read_semester_resources(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    return build_semester_resource_list_response(db, current_user, semester_id)
 
 
 @router.get("/semesters/{semester_id}/lms/assignments", response_model=schemas.LmsAssignmentListResponse)
@@ -1151,10 +1162,10 @@ def create_course_resource_link(
 
 
 @router.patch("/courses/{course_id}/resources/{resource_id}", response_model=schemas.CourseResourceFile)
-def rename_course_resource(
+def update_course_resource(
     course_id: str,
     resource_id: str,
-    payload: schemas.CourseResourceRenameRequest,
+    payload: schemas.CourseResourceUpdateRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
@@ -1162,12 +1173,22 @@ def rename_course_resource(
     resource = course_resources.get_course_resource(db, course_id, resource_id)
     if resource is None:
         raise HTTPException(status_code=404, detail="Course resource not found")
+    if payload.filename_display is None and payload.url is None:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail("INVALID_RESOURCE_UPDATE", "At least one resource field must be provided."),
+        )
     try:
-        return course_resources.rename_course_resource(db, resource, payload.filename_display)
+        return course_resources.update_course_resource(
+            db,
+            resource,
+            filename_display=payload.filename_display,
+            external_url=payload.url,
+        )
     except course_resources.CourseResourceStorageError as error:
         raise HTTPException(
             status_code=422,
-            detail=error_detail("INVALID_RESOURCE_FILENAME", str(error)),
+            detail=error_detail("INVALID_RESOURCE_UPDATE", str(error)),
         ) from error
 
 

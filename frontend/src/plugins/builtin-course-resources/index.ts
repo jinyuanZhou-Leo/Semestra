@@ -1,6 +1,6 @@
 // input:  [plugin runtime helper and course-resources tab/widget definitions]
 // output: [default-exported course-resources runtime registration]
-// pos:    [lazy plugin runtime entry that registers the course resources tab and quick-open widget]
+// pos:    [lazy plugin runtime entry that registers the builtin-course-resources tab and quick-open widget]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments

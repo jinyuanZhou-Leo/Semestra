@@ -292,6 +292,30 @@ def rename_course_resource(db: Session, resource: models.CourseResourceFile, fil
     return resource
 
 
+def update_course_resource(
+    db: Session,
+    resource: models.CourseResourceFile,
+    *,
+    filename_display: str | None = None,
+    external_url: str | None = None,
+) -> models.CourseResourceFile:
+    if filename_display is not None:
+        resource.filename_display = sanitize_display_name(filename_display)
+
+    if external_url is not None:
+        if resource.resource_kind != "link":
+            raise CourseResourceStorageError("Only URL resources can update their URL.")
+        normalized_url = normalize_external_url(external_url)
+        resource.external_url = normalized_url
+        resource.filename_original = normalized_url
+
+    resource.updated_at = now_utc_iso()
+    db.add(resource)
+    db.commit()
+    db.refresh(resource)
+    return resource
+
+
 def resolve_absolute_path(base_dir: Path, resource: models.CourseResourceFile) -> Path:
     return get_storage_root(base_dir) / resource.storage_path
 

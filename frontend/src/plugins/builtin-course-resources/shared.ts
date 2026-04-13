@@ -8,9 +8,32 @@
 
 import type { CourseResourceFile } from '@/services/api';
 
-export const COURSE_RESOURCES_PLUGIN_ID = 'course-resources';
-export const COURSE_RESOURCES_TAB_TYPE = 'course-resources-tab';
-export const COURSE_RESOURCES_WIDGET_TYPE = 'course-resources-quick-open';
+// ─── Canonical plugin / type identifiers ────────────────────────────────────
+
+export const COURSE_RESOURCES_PLUGIN_ID = 'builtin-course-resources';
+export const COURSE_RESOURCES_TAB_TYPE = 'builtin-course-resources';
+export const COURSE_RESOURCES_WIDGET_TYPE = 'builtin-course-resources-quick-open';
+
+export type ResourceSortOrder = 'newest' | 'oldest' | 'name_asc' | 'name_desc';
+
+export const RESOURCE_SORT_ORDER_OPTIONS: { label: string; value: ResourceSortOrder }[] = [
+    { label: 'Newest first', value: 'newest' },
+    { label: 'Oldest first', value: 'oldest' },
+    { label: 'Name A → Z', value: 'name_asc' },
+    { label: 'Name Z → A', value: 'name_desc' },
+];
+
+export const DEFAULT_SORT_ORDER: ResourceSortOrder = 'newest';
+
+export const resolveResourceSortOrder = (raw: unknown): ResourceSortOrder => {
+    if (raw === 'newest' || raw === 'oldest' || raw === 'name_asc' || raw === 'name_desc') {
+        return raw;
+    }
+    return DEFAULT_SORT_ORDER;
+};
+
+// ─── Widget slot settings ────────────────────────────────────────────────────
+
 export const COURSE_RESOURCES_SLOT_COUNTS = [1, 2, 4] as const;
 
 export type CourseResourcesSlotCount = (typeof COURSE_RESOURCES_SLOT_COUNTS)[number];
@@ -49,6 +72,8 @@ export const resizeWidgetSlots = (
     };
 };
 
+// ─── Presentation helpers ────────────────────────────────────────────────────
+
 export const getResourceExtensionLabel = (resource: Pick<CourseResourceFile, 'filename_display' | 'filename_original'>) => {
     const sourceName = resource.filename_display || resource.filename_original;
     const lastDot = sourceName.lastIndexOf('.');
@@ -86,4 +111,22 @@ export const formatTimestamp = (value: string) => {
         hour: 'numeric',
         minute: '2-digit',
     }).format(parsed);
+};
+
+// ─── File sorting ────────────────────────────────────────────────────────────
+
+export const sortFiles = (files: CourseResourceFile[], order: ResourceSortOrder): CourseResourceFile[] => {
+    const copy = [...files];
+    switch (order) {
+        case 'newest':
+            return copy.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+        case 'oldest':
+            return copy.sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+        case 'name_asc':
+            return copy.sort((a, b) => a.filename_display.localeCompare(b.filename_display));
+        case 'name_desc':
+            return copy.sort((a, b) => b.filename_display.localeCompare(a.filename_display));
+        default:
+            return copy;
+    }
 };

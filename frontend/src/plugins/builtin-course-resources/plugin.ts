@@ -12,7 +12,7 @@ import { definePlugin, definePluginManifest } from '../../plugin-sdk/authoring.t
 
 export default definePlugin({
   descriptor: definePluginManifest({
-    id: 'course-resources',
+    id: 'builtin-course-resources',
     display_name: 'Course Resources',
     author: 'Jinyuan',
     description: 'Keep course files and links organized for quick access.',
@@ -21,16 +21,16 @@ export default definePlugin({
     icon: FolderOpenDot,
     tabs: [
       {
-        type: 'course-resources-tab',
+        type: 'builtin-course-resources',
         title: 'Course Resources',
         description: 'Manage course files with drag-and-drop upload, quick open, and lightweight file actions.',
         icon: FolderOpenDot,
-        contexts: ['course'],
+        contexts: ['semester', 'course'],
       },
     ],
     widgets: [
       {
-        type: 'course-resources-quick-open',
+        type: 'builtin-course-resources-quick-open',
         title: 'Course Resources Quick Open',
         description: 'Open one, two, or four pinned course resources from the dashboard.',
         icon: PanelsTopLeft,

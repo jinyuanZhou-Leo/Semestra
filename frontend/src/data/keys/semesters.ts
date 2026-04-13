@@ -32,4 +32,5 @@ export const semesterKeys = {
       ? ['semesters', semesterId, 'lms-calendar-events', params] as const
       : ['semesters', semesterId, 'lms-calendar-events'] as const
   ),
+  resources: (semesterId: string) => ['semesters', semesterId, 'resources'] as const,
 };

@@ -348,18 +348,22 @@ def _build_runtime_tab_payload(
         semester_id=bucket_semester_id,
         course_id=bucket_course_id,
     )
-    selected_tab_types = (
-        [
+    if order_entries:
+        selected_tab_types = [
             entry.tab_type
             for entry in order_entries
             if entry.tab_type in available_tab_types
         ]
-        if order_entries
-        else [
+        selected_tab_types.extend(
+            tab_type
+            for tab_type in available_tab_types
+            if tab_type not in selected_tab_types
+        )
+    else:
+        selected_tab_types = [
             tab_type
             for tab_type in available_tab_types
         ]
-    )
 
     # Pre-fetch all scope-chain rows once. Both the per-tab metadata loop and
     # tab_settings serialization share these rows — no further DB access needed.

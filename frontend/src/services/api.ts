@@ -423,6 +423,23 @@ export interface CourseResourceUploadResponse {
     remaining_bytes: number;
 }
 
+export interface CourseFolderWithResources {
+    course_id: string;
+    course_name: string;
+    course_alias: string | null;
+    course_category: string | null;
+    course_color: string | null;
+    files: CourseResourceFile[];
+}
+
+export interface SemesterResourcesResponse {
+    semester_id: string;
+    total_bytes_used: number;
+    total_bytes_limit: number;
+    remaining_bytes: number;
+    course_folders: CourseFolderWithResources[];
+}
+
 export interface User {
     id: string;
     email: string;
@@ -1278,7 +1295,11 @@ const api = {
         );
         return response.data;
     },
-    renameCourseResource: async (courseId: string, resourceId: string, data: { filename_display: string }) => {
+    updateCourseResource: async (
+        courseId: string,
+        resourceId: string,
+        data: { filename_display?: string; url?: string },
+    ) => {
         const response = await axios.patch<CourseResourceFile>(`/api/courses/${courseId}/resources/${resourceId}`, data);
         return response.data;
     },
@@ -1292,6 +1313,12 @@ const api = {
     buildCourseResourceOpenUrl: (courseId: string, resourceId: string, options?: { download?: boolean }) => (
         `/api/courses/${courseId}/resources/${resourceId}/download${options?.download ? '?download=true' : ''}`
     ),
+    getSemesterResources: async (semesterId: string) => {
+        return dedupeGet(`GET:/api/semesters/${semesterId}/resources`, async () => {
+            const response = await axios.get<SemesterResourcesResponse>(`/api/semesters/${semesterId}/resources`);
+            return response.data;
+        });
+    },
 
     // Widgets
     createWidget: async (semesterId: string, data: { widget_type: string; title: string }) => {

@@ -805,14 +805,27 @@ class CourseResourceFile(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class CourseResourceRenameRequest(BaseModel):
-    filename_display: str
+class CourseResourceUpdateRequest(BaseModel):
+    filename_display: Optional[str] = None
+    url: Optional[str] = None
 
     @field_validator("filename_display")
-    def validate_filename_display(cls, value: str) -> str:
+    def validate_filename_display(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
         normalized = " ".join(value.split()).strip()
         if not normalized:
             raise ValueError("filename_display is required.")
+        return normalized
+
+    @field_validator("url")
+    def validate_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        normalized = value.strip()
+        parsed = urlparse(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("url must be a valid http or https URL.")
         return normalized
 
 class CourseResourceLinkCreate(BaseModel):
@@ -851,6 +864,21 @@ class CourseResourceUploadResponse(BaseModel):
     total_bytes_used: int = 0
     total_bytes_limit: int = 0
     remaining_bytes: int = 0
+
+class CourseFolderWithResources(BaseModel):
+    course_id: str
+    course_name: str
+    course_alias: Optional[str] = None
+    course_category: Optional[str] = None
+    course_color: Optional[str] = None
+    files: List[CourseResourceFile] = []
+
+class SemesterResourcesResponse(BaseModel):
+    semester_id: str
+    total_bytes_used: int = 0
+    total_bytes_limit: int = 0
+    remaining_bytes: int = 0
+    course_folders: List[CourseFolderWithResources] = []
 
 class TodoPriority(str, Enum):
     NONE = ""
