@@ -151,7 +151,7 @@ const CourseResourcesQuickOpenWidget: React.FC<WidgetProps> = ({ courseId, setti
                 }
                 return (
                     <ResourceCard
-                        key={resource.id}
+                        key={`${resource.id}-${index}`}
                         title={resource.filename_display}
                         meta={resource.resource_kind === 'link'
                             ? 'Saved link'

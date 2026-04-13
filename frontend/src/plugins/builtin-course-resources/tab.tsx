@@ -674,7 +674,7 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
 
     // ── UI state (transient dialog form fields, preserved across remounts) ──
 
-    const { state, setState: setResourceUiState, resetState } = usePluginUiState<CourseResourcesUiState>(
+    const { state, setState: setResourceUiState } = usePluginUiState<CourseResourcesUiState>(
         'course-resources-dialog',
         () => ({
             activeUploadTab: 'files',
@@ -755,18 +755,23 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
         if (semesterId) {
             await queryClient.invalidateQueries({ queryKey: semesterKeys.resources(semesterId) });
         }
-        if (effectiveCourseId && !isSemesterView) {
-            await queryClient.invalidateQueries({ queryKey: courseKeys.resources(effectiveCourseId) });
+        if (activeFolderCourseId) {
+            await queryClient.invalidateQueries({ queryKey: courseKeys.resources(activeFolderCourseId) });
         }
-    }, [queryClient, semesterId, effectiveCourseId, isSemesterView]);
+    }, [queryClient, semesterId, activeFolderCourseId]);
 
     // ── Mutations (private API — file operations only) ───────────────────────
 
     const resetUploadState = React.useCallback(() => {
         setPendingFiles([]);
         setIsDragging(false);
-        resetState();
-    }, [resetState]);
+        setResourceUiState((current) => ({
+            ...current,
+            activeUploadTab: 'files',
+            linkUrl: '',
+            linkName: '',
+        }));
+    }, [setResourceUiState]);
 
     const uploadMutation = useMutation({
         mutationFn: (files: File[]) => api.uploadCourseResources(activeFolderCourseId, files),
