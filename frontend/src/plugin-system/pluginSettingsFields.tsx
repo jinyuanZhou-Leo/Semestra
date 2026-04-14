@@ -199,17 +199,18 @@ const usePluginSettingsBucketInternal = (
   const pendingRef = useRef<Record<string, unknown> | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Stable refs so flush never captures stale scope/settingsKey/tabSetting
+  // Stable refs so flush never captures stale scope/settingsKey/tabSetting.
+  // Assigned synchronously on every render so callbacks always read the latest value.
   const scopeRef = useRef(scope);
   const settingsKeyRef = useRef(settingsKey);
   const bucketKeyRef = useRef(bucketKey);
   const tabSettingRef = useRef(tabSetting);
   const inheritedSettingsRef = useRef(inheritedSettings);
-  useEffect(() => { scopeRef.current = scope; }, [scope]);
-  useEffect(() => { settingsKeyRef.current = settingsKey; }, [settingsKey]);
-  useEffect(() => { bucketKeyRef.current = bucketKey; }, [bucketKey]);
-  useEffect(() => { tabSettingRef.current = tabSetting; }, [tabSetting]);
-  useEffect(() => { inheritedSettingsRef.current = inheritedSettings; }, [inheritedSettings]);
+  scopeRef.current = scope;
+  settingsKeyRef.current = settingsKey;
+  bucketKeyRef.current = bucketKey;
+  tabSettingRef.current = tabSetting;
+  inheritedSettingsRef.current = inheritedSettings;
 
   // flush: immediately send the pending write to the API (called by debounce timer and on unmount)
   const flush = useCallback(async () => {

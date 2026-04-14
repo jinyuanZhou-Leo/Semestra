@@ -56,11 +56,11 @@ export const buildPluginCatalogIndex = (pluginEntries: PluginEntry[]): PluginCat
   };
 };
 
+const isPublicEntry = (entry: PluginEntry): boolean =>
+  entry.manifest.kind !== 'host-shell' && entry.manifest.visibility === 'public';
+
 export const getTabCatalogItems = (pluginEntries: PluginEntry[], context?: TabContext): TabCatalogItem[] => {
-  const manifestById = buildManifestLookup(pluginEntries);
-  const items = pluginEntries
-    .flatMap((entry) => entry.tabCatalog)
-    .filter((item) => isPublicContribution(manifestById, item.pluginId));
+  const items = pluginEntries.filter(isPublicEntry).flatMap((entry) => entry.tabCatalog);
   if (!context) {
     return items;
   }
@@ -68,37 +68,15 @@ export const getTabCatalogItems = (pluginEntries: PluginEntry[], context?: TabCo
 };
 
 export const getWidgetCatalogItems = (pluginEntries: PluginEntry[], context?: WidgetContext): WidgetCatalogItem[] => {
-  const manifestById = buildManifestLookup(pluginEntries);
-  const items = pluginEntries
-    .flatMap((entry) => entry.widgetCatalog)
-    .filter((item) => isPublicContribution(manifestById, item.pluginId));
+  const items = pluginEntries.filter(isPublicEntry).flatMap((entry) => entry.widgetCatalog);
   if (!context) {
     return items;
   }
   return items.filter((item) => (item.allowedContexts ?? DEFAULT_WIDGET_ALLOWED_CONTEXTS).includes(context));
 };
 
-export const getPublicPluginManifest = (pluginEntries: PluginEntry[]): PluginManifestItem[] => {
-  return pluginEntries
-    .map((entry) => entry.manifest)
-    .filter((manifest) => manifest.kind !== 'host-shell' && manifest.visibility === 'public');
-};
-
-const buildManifestLookup = (pluginEntries: PluginEntry[]): Map<string, PluginManifestItem> => {
-  const map = new Map<string, PluginManifestItem>();
-  for (const entry of pluginEntries) {
-    map.set(entry.id, entry.manifest);
-  }
-  return map;
-};
-
-const isPublicContribution = (manifestById: Map<string, PluginManifestItem>, pluginId: string): boolean => {
-  const manifest = manifestById.get(pluginId);
-  if (!manifest) {
-    return false;
-  }
-  return manifest.kind !== 'host-shell' && manifest.visibility === 'public';
-};
+export const getPublicPluginManifest = (pluginEntries: PluginEntry[]): PluginManifestItem[] =>
+  pluginEntries.filter(isPublicEntry).map((entry) => entry.manifest);
 
 export const resolveCatalogMetadata = (
   catalogItem?: Pick<TabCatalogItem, 'name' | 'description' | 'icon'> | Pick<WidgetCatalogItem, 'name' | 'description' | 'icon'>,
@@ -135,8 +113,5 @@ export const canAddWidgetCatalogItem = (
   if (item.maxInstances === 0) {
     return currentCount < 1;
   }
-  if (typeof item.maxInstances === 'number') {
-    return currentCount < item.maxInstances;
-  }
-  return true;
+  return typeof item.maxInstances === 'number' ? currentCount < item.maxInstances : true;
 };

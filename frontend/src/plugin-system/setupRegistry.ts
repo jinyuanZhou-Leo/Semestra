@@ -51,12 +51,7 @@ const toSetupFieldDefinition = (
     summaryLabels: { ...field.summary_labels },
   };
 
-  const fieldType = field.type === 'json' || field.type === 'select' || field.type === 'boolean'
-    || field.type === 'number' || field.type === 'textarea' || field.type === 'date'
-    ? field.type
-    : 'text' as const;
-
-  return { type: fieldType, ...baseField } as PluginSetupFieldDefinition;
+  return { type: field.type, ...baseField } as PluginSetupFieldDefinition;
 };
 
 const validateSetupFieldDefinition = (

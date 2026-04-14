@@ -262,14 +262,11 @@ const {
   widgetCatalogByType,
 } = buildPluginCatalogIndex(pluginEntries);
 
-pluginModulePaths.forEach((path) => {
-  const definition = pluginModules[path]?.default;
-  const directoryName = getDirectoryName(path);
-  const entry = directoryName ? pluginsByDirectoryName.get(directoryName) : undefined;
-  if (!definition || !entry) {
-    return;
+pluginEntries.forEach((entry) => {
+  const definition = pluginModules[`../plugins/${entry.directoryName}/plugin.ts`]?.default;
+  if (definition) {
+    PluginSettingsRegistry.registerPluginSettingsMany(entry.id, definition.settingsSections ?? []);
   }
-  PluginSettingsRegistry.registerPluginSettingsMany(entry.id, definition.settingsSections ?? []);
 });
 
 const loadPluginEntry = async (entry: PluginEntry): Promise<boolean> => {

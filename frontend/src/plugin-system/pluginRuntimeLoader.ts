@@ -54,25 +54,30 @@ export const validateRuntimeDefinition = (
   const expectedTabTypes = entry.tabCatalog.map((item) => item.type);
   const expectedWidgetTypes = entry.widgetCatalog.map((item) => item.type);
 
+  const runtimeTabSet = new Set(runtimeTabTypes);
+  const runtimeWidgetSet = new Set(runtimeWidgetTypes);
+  const expectedTabSet = new Set(expectedTabTypes);
+  const expectedWidgetSet = new Set(expectedWidgetTypes);
+
   const errors: string[] = [];
 
   runtimeTabTypes.forEach((type) => {
-    if (!expectedTabTypes.includes(type)) {
+    if (!expectedTabSet.has(type)) {
       errors.push(`Runtime tab type "${type}" is missing from metadata`);
     }
   });
   runtimeWidgetTypes.forEach((type) => {
-    if (!expectedWidgetTypes.includes(type)) {
+    if (!expectedWidgetSet.has(type)) {
       errors.push(`Runtime widget type "${type}" is missing from metadata`);
     }
   });
   expectedTabTypes.forEach((type) => {
-    if (!runtimeTabTypes.includes(type)) {
+    if (!runtimeTabSet.has(type)) {
       errors.push(`Metadata tab type "${type}" is missing from runtime`);
     }
   });
   expectedWidgetTypes.forEach((type) => {
-    if (!runtimeWidgetTypes.includes(type)) {
+    if (!runtimeWidgetSet.has(type)) {
       errors.push(`Metadata widget type "${type}" is missing from runtime`);
     }
   });

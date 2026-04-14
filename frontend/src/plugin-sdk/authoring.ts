@@ -59,23 +59,7 @@ export const definePlugin = (definition: PluginDefinition): PluginDefinition => 
     },
     loadRuntime: definition.loadRuntime,
     settingsSections: rawSections.map((section) => defineSettingsSection(section)),
-    setup: definition.setup
-      ? {
-        schema: {
-          sections: definition.setup.schema.sections.map((section) => ({
-            ...section,
-            fields: section.fields.map((field) => ({
-              ...field,
-              options: [...(field.options ?? [])],
-              summary_labels: { ...field.summary_labels },
-            })),
-          })),
-          validation_rules: [...(definition.setup.schema.validation_rules ?? [])],
-        },
-        ui: definition.setup.ui,
-        validate: definition.setup.validate,
-      }
-      : undefined,
+    setup: definition.setup ? defineSetup(definition.setup) : undefined,
   });
 };
 
