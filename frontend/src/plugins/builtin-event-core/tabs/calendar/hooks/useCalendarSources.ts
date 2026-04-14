@@ -94,6 +94,8 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
     if (!context) return EMPTY_STATE;
     return buildCachedState(sources, context);
   });
+  const sourcesRef = React.useRef(sources);
+  sourcesRef.current = sources;
   const requestCounterRef = React.useRef(0);
   const previousSourceIdsRef = React.useRef<Set<string>>(new Set());
   const hasInitializedSourcesRef = React.useRef(false);
@@ -162,13 +164,14 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
       return;
     }
 
-    const cachedState = buildCachedState(sources, context);
+    const currentSources = sourcesRef.current;
+    const cachedState = buildCachedState(currentSources, context);
     const previousSourceIds = previousSourceIdsRef.current;
-    const nextSourceIds = new Set(sources.map((source) => source.id));
+    const nextSourceIds = new Set(currentSources.map((source) => source.id));
     const shouldReloadEnabledSources = hasInitializedSourcesRef.current;
     const reenabledSourceIds = !shouldReloadEnabledSources
       ? new Set<string>()
-      : new Set(sources
+      : new Set(currentSources
         .filter((source) => !previousSourceIds.has(source.id))
         .map((source) => source.id));
 
@@ -185,7 +188,7 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
       return cachedState;
     });
 
-    const sourcesToLoad = sources.filter((source) => (
+    const sourcesToLoad = currentSources.filter((source) => (
       reenabledSourceIds.has(source.id) || !cachedState.dataBySourceId.has(source.id)
     ));
     if (sourcesToLoad.length === 0) return;

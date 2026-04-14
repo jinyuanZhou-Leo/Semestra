@@ -11,6 +11,7 @@ import { queryClient } from '@/services/queryClient';
 import { queryKeys } from '@/services/queryKeys';
 import scheduleService from '@/services/schedule';
 import { registerCalendarSources } from '../../../calendar-core';
+import type { CalendarSourceDefinition } from '../../../calendar-core';
 import { BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE } from '../../../shared/constants';
 import type { CalendarSourceServices } from '../../../shared/sourceServices';
 import { createGradebookCalendarSource } from './gradebookSource';
@@ -34,7 +35,7 @@ export const ensureBuiltinCalendarSourcesRegistered = () => {
     createTodoCalendarSource(services),
     createGradebookCalendarSource(services),
     createLmsCalendarSource(services),
-  ] as unknown as import('../../../calendar-core').CalendarSourceDefinition[]);
+  ] as unknown as CalendarSourceDefinition[]);
 };
 
 export const deregisterBuiltinCalendarSources = () => {

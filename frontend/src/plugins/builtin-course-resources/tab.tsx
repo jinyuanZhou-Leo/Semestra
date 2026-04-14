@@ -726,7 +726,10 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
 
     // ── Derived data for semester view ───────────────────────────────────────
 
-    const semesterFolders = semesterResourcesQuery.data?.course_folders ?? [];
+    const semesterFolders = React.useMemo(
+        () => semesterResourcesQuery.data?.course_folders ?? [],
+        [semesterResourcesQuery.data?.course_folders],
+    );
     const semesterName = semesterDetailQuery.data?.name?.trim() || 'Semester';
 
     // In semester view, empty selectedFolderId means "root directory".
