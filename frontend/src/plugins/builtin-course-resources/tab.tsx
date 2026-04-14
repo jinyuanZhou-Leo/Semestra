@@ -84,6 +84,7 @@ import {
 
 const RESOURCE_LIMIT_MESSAGE = 'Uploading these files would exceed the 50MB account resource limit.';
 const SCRIPT_FILE_MESSAGE = 'Script files are not allowed. Remove .sh, .bat, .ps1, .cmd, and similar executable files.';
+// ⚠️ Keep in sync with BLOCKED_UPLOAD_EXTENSIONS in backend/course_resources.py
 const BLOCKED_UPLOAD_EXTENSIONS = new Set([
     '.bat', '.bash', '.cmd', '.com', '.csh', '.ksh',
     '.ps1', '.psm1', '.py', '.rb', '.sh', '.vbs', '.zsh',
@@ -218,6 +219,14 @@ const UploadSelectionList: React.FC<{
         </div>
     );
 };
+
+// ─── Shared display primitives ───────────────────────────────────────────────
+
+const ReadonlyValue: React.FC<{ value: string }> = ({ value }) => (
+    <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm text-foreground">
+        {value}
+    </div>
+);
 
 // ─── File-manager rows (semester explorer view) ──────────────────────────────
 
@@ -429,11 +438,6 @@ const ResourceDetailsDialog: React.FC<{
 }> = ({ folder, resource, open, nameValue, urlValue, isSaving, onOpenChange, onNameChange, onUrlChange, onSave }) => {
     const isFolder = Boolean(folder);
     const isLinkResource = resource?.resource_kind === 'link';
-    const ReadonlyValue: React.FC<{ value: string }> = ({ value }) => (
-        <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm text-foreground">
-            {value}
-        </div>
-    );
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -529,6 +533,8 @@ const AddResourceDialog: React.FC<{
     remainingBytes, isUploading, isSavingLink, onUpload, onSaveUrl,
 }) => {
     const isBusy = isUploading || isSavingLink;
+    const totalIncoming = pendingFiles.reduce((sum, f) => sum + f.size, 0);
+    const wouldExceedQuota = remainingBytes !== undefined && pendingFiles.length > 0 && totalIncoming > remainingBytes;
 
     return (
         <Dialog
@@ -585,8 +591,10 @@ const AddResourceDialog: React.FC<{
                                 )}
                             </button>
                             {remainingBytes !== undefined && (
-                                <p className="text-xs text-muted-foreground">
-                                    Remaining account storage: {formatBytes(remainingBytes)}
+                                <p className={cn('text-xs', wouldExceedQuota ? 'text-destructive' : 'text-muted-foreground')}>
+                                    {wouldExceedQuota
+                                        ? `Selection exceeds remaining storage (${formatBytes(remainingBytes)} left). Remove files to continue.`
+                                        : `Remaining account storage: ${formatBytes(remainingBytes)} (may be slightly out of date)`}
                                 </p>
                             )}
                             <UploadSelectionList files={pendingFiles} onRemove={onRemoveFile} />
@@ -637,7 +645,7 @@ const AddResourceDialog: React.FC<{
                         <Button
                             type="button"
                             onClick={onUpload}
-                            disabled={pendingFiles.length === 0 || isUploading}
+                            disabled={pendingFiles.length === 0 || isUploading || wouldExceedQuota}
                         >
                             {isUploading
                                 ? <><Loader2 className="h-4 w-4 animate-spin" />Uploading…</>
@@ -685,8 +693,8 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
         }),
     );
     const sortOrder = resolveResourceSortOrder(state.sortOrder);
-    const semesterSortField = sortOrder === 'name_asc' || sortOrder === 'name_desc' ? 'name' : 'time';
-    const semesterSortDirection = sortOrder === 'name_asc' || sortOrder === 'oldest' ? 'asc' : 'desc';
+    const sortField = sortOrder === 'name_asc' || sortOrder === 'name_desc' ? 'name' : 'time';
+    const sortDirection = sortOrder === 'name_asc' || sortOrder === 'oldest' ? 'asc' : 'desc';
 
     const [isUploadDialogOpen, setIsUploadDialogOpen] = React.useState(false);
     const [isDragging, setIsDragging] = React.useState(false);
@@ -863,11 +871,15 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
     const submitRename = React.useCallback(async (event: React.FormEvent) => {
         event.preventDefault();
         if (!renamingResource) return;
-        await updateResourceMutation.mutateAsync({
-            resourceId: renamingResource.id,
-            data: { filename_display: renameValue.trim() },
-        });
-        setRenamingResource(null);
+        try {
+            await updateResourceMutation.mutateAsync({
+                resourceId: renamingResource.id,
+                data: { filename_display: renameValue.trim() },
+            });
+            setRenamingResource(null);
+        } catch {
+            // Error is surfaced via the mutation's onError toast handler
+        }
     }, [updateResourceMutation, renameValue, renamingResource]);
 
     const openResourceDetailsDialog = React.useCallback((resource: CourseResourceFile) => {
@@ -894,16 +906,20 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
 
     const submitResourceDetails = React.useCallback(async () => {
         if (!detailsResource) return;
-        await updateResourceMutation.mutateAsync({
-            resourceId: detailsResource.id,
-            data: {
-                filename_display: detailsNameValue.trim(),
-                url: detailsResource.resource_kind === 'link' ? detailsUrlValue.trim() : undefined,
-            },
-        });
-        setDetailsResource(null);
-        setDetailsNameValue('');
-        setDetailsUrlValue('');
+        try {
+            await updateResourceMutation.mutateAsync({
+                resourceId: detailsResource.id,
+                data: {
+                    filename_display: detailsNameValue.trim(),
+                    url: detailsResource.resource_kind === 'link' ? detailsUrlValue.trim() : undefined,
+                },
+            });
+            setDetailsResource(null);
+            setDetailsNameValue('');
+            setDetailsUrlValue('');
+        } catch {
+            // Error is surfaced via the mutation's onError toast handler
+        }
     }, [detailsNameValue, detailsResource, detailsUrlValue, updateResourceMutation]);
 
     // ── Empty / error context guards ─────────────────────────────────────────
@@ -953,14 +969,14 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
     const isListLoading = isSemesterView ? semesterResourcesQuery.isLoading : courseResourcesQuery.isLoading;
     const isListError = isSemesterView ? Boolean(semesterResourcesQuery.error) : Boolean(courseResourcesQuery.error);
 
-    // ── Semester view (single-column file-manager layout) ───────────────────
+    // ── Single return: content switches by isSemesterView; dialogs shared once ─
 
-    if (isSemesterView) {
-        return (
-            <>
-                {hiddenFileInput}
-                <div className="flex h-full flex-col gap-4">
-                    {isListLoading ? (
+    return (
+        <>
+            {hiddenFileInput}
+            <div className="flex h-full flex-col gap-4">
+                {isSemesterView ? (
+                    isListLoading ? (
                         <div className="space-y-2">
                             {[0, 1, 2].map((i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
                         </div>
@@ -1007,20 +1023,20 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
                                     {selectedFolder ? (
                                         <>
                                             <SortMenu
-                                                field={semesterSortField}
-                                                direction={semesterSortDirection}
+                                                field={sortField}
+                                                direction={sortDirection}
                                                 onFieldChange={(field) => {
                                                     setResourceUiState((current) => ({
                                                         ...current,
                                                         sortOrder: field === 'name'
-                                                            ? (semesterSortDirection === 'asc' ? 'name_asc' : 'name_desc')
-                                                            : (semesterSortDirection === 'asc' ? 'oldest' : 'newest'),
+                                                            ? (sortDirection === 'asc' ? 'name_asc' : 'name_desc')
+                                                            : (sortDirection === 'asc' ? 'oldest' : 'newest'),
                                                     }));
                                                 }}
                                                 onDirectionChange={(direction) => {
                                                     setResourceUiState((current) => ({
                                                         ...current,
-                                                        sortOrder: semesterSortField === 'name'
+                                                        sortOrder: sortField === 'name'
                                                             ? (direction === 'asc' ? 'name_asc' : 'name_desc')
                                                             : (direction === 'asc' ? 'oldest' : 'newest'),
                                                     }));
@@ -1072,158 +1088,67 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
                                 )}
                             </div>
                         </div>
-                    )}
-                </div>
-
-                <AddResourceDialog
-                    open={isUploadDialogOpen}
-                    onOpenChange={setIsUploadDialogOpen}
-                    activeTab={state.activeUploadTab}
-                    onTabChange={(tab) => setResourceUiState((s) => ({ ...s, activeUploadTab: tab }))}
-                    pendingFiles={pendingFiles}
-                    isDragging={isDragging}
-                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                    onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
-                    onDrop={(e) => { e.preventDefault(); setIsDragging(false); appendFiles(e.dataTransfer.files); }}
-                    onBrowseClick={() => fileInputRef.current?.click()}
-                    onRemoveFile={(i) => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                    linkUrl={state.linkUrl}
-                    onLinkUrlChange={(v) => setResourceUiState((s) => ({ ...s, linkUrl: v }))}
-                    linkName={state.linkName}
-                    onLinkNameChange={(v) => setResourceUiState((s) => ({ ...s, linkName: v }))}
-                    remainingBytes={quotaData?.remaining_bytes}
-                    isUploading={uploadMutation.isPending}
-                    isSavingLink={createLinkMutation.isPending}
-                    onUpload={submitPendingFiles}
-                    onSaveUrl={() => createLinkMutation.mutate()}
-                />
-
-                {/* Rename dialog */}
-                <Dialog open={Boolean(renamingResource)} onOpenChange={(open) => !open && setRenamingResource(null)}>
-                    <DialogContent className="sm:max-w-[460px]">
-                        <DialogHeader>
-                            <DialogTitle>Rename resource</DialogTitle>
-                            <DialogDescription>Update the display name used inside Course Resources.</DialogDescription>
-                        </DialogHeader>
-                        <form className="space-y-4" onSubmit={submitRename}>
-                            <Input
-                                value={renameValue}
-                                onChange={(e) => setRenameValue(e.target.value)}
-                                placeholder="Resource name"
-                                autoFocus
-                            />
-                            <DialogFooter>
-                                <Button type="button" variant="outline" onClick={() => setRenamingResource(null)} disabled={updateResourceMutation.isPending}>
-                                    Cancel
+                    )
+                ) : (
+                    <>
+                        <div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
+                            <div />
+                            <div className="flex min-h-9 items-center gap-2">
+                                <div className="flex h-9 items-center rounded-md border border-border/60 bg-background px-2.5">
+                                    <QuotaBadge
+                                        status={courseResourcesQuery.status}
+                                        totalBytesUsed={quotaData?.total_bytes_used}
+                                        totalBytesLimit={quotaData?.total_bytes_limit}
+                                    />
+                                </div>
+                                <SortMenu
+                                    field={sortField}
+                                    direction={sortDirection}
+                                    onFieldChange={(field) => {
+                                        setResourceUiState((current) => ({
+                                            ...current,
+                                            sortOrder: field === 'name'
+                                                ? (sortDirection === 'asc' ? 'name_asc' : 'name_desc')
+                                                : (sortDirection === 'asc' ? 'oldest' : 'newest'),
+                                        }));
+                                    }}
+                                    onDirectionChange={(direction) => {
+                                        setResourceUiState((current) => ({
+                                            ...current,
+                                            sortOrder: sortField === 'name'
+                                                ? (direction === 'asc' ? 'name_asc' : 'name_desc')
+                                                : (direction === 'asc' ? 'oldest' : 'newest'),
+                                        }));
+                                    }}
+                                />
+                                <Button
+                                    type="button"
+                                    className="h-9"
+                                    onClick={() => setIsUploadDialogOpen(true)}
+                                    disabled={isMutating}
+                                >
+                                    {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                    Add resource
                                 </Button>
-                                <Button type="submit" disabled={!renameValue.trim() || updateResourceMutation.isPending}>
-                                    {updateResourceMutation.isPending ? 'Saving…' : 'Save'}
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
-
-                <ResourceDetailsDialog
-                    folder={detailsFolder}
-                    resource={detailsResource}
-                    open={Boolean(detailsFolder || detailsResource)}
-                    nameValue={detailsNameValue}
-                    urlValue={detailsUrlValue}
-                    isSaving={updateResourceMutation.isPending}
-                    onOpenChange={closeDetailsDialog}
-                    onNameChange={setDetailsNameValue}
-                    onUrlChange={setDetailsUrlValue}
-                    onSave={() => void submitResourceDetails()}
-                />
-
-                <AlertDialog open={Boolean(resourceToDelete)} onOpenChange={(open) => !open && setResourceToDelete(null)}>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Delete resource?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {resourceToDelete
-                                    ? `This will permanently remove "${resourceToDelete.filename_display}" from Course Resources.`
-                                    : 'This action cannot be undone.'}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                                variant="destructive"
-                                disabled={deleteMutation.isPending}
-                                onClick={() => { if (resourceToDelete) deleteMutation.mutate(resourceToDelete.id); }}
-                            >
-                                {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </>
-        );
-    }
-
-    // ── Course view (single-folder layout, unchanged UX) ─────────────────────
-
-    return (
-        <>
-            {hiddenFileInput}
-            <div className="flex h-full flex-col gap-4">
-                <div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
-                    <div />
-                    <div className="flex min-h-9 items-center gap-2">
-                        <div className="flex h-9 items-center rounded-md border border-border/60 bg-background px-2.5">
-                            <QuotaBadge
-                                status={courseResourcesQuery.status}
-                                totalBytesUsed={quotaData?.total_bytes_used}
-                                totalBytesLimit={quotaData?.total_bytes_limit}
-                            />
+                            </div>
                         </div>
-                        <SortMenu
-                            field={semesterSortField}
-                            direction={semesterSortDirection}
-                            onFieldChange={(field) => {
-                                setResourceUiState((current) => ({
-                                    ...current,
-                                    sortOrder: field === 'name'
-                                        ? (semesterSortDirection === 'asc' ? 'name_asc' : 'name_desc')
-                                        : (semesterSortDirection === 'asc' ? 'oldest' : 'newest'),
-                                }));
-                            }}
-                            onDirectionChange={(direction) => {
-                                setResourceUiState((current) => ({
-                                    ...current,
-                                    sortOrder: semesterSortField === 'name'
-                                        ? (direction === 'asc' ? 'name_asc' : 'name_desc')
-                                        : (direction === 'asc' ? 'oldest' : 'newest'),
-                                }));
-                            }}
-                        />
-                        <Button
-                            type="button"
-                            className="h-9"
-                            onClick={() => setIsUploadDialogOpen(true)}
-                            disabled={isMutating}
-                        >
-                            {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                            Add resource
-                        </Button>
-                    </div>
-                </div>
 
-                <SemesterResourceExplorerList
-                    courseId={effectiveCourseId!}
-                    files={displayedFiles}
-                    isLoading={isListLoading}
-                    isError={isListError}
-                    onRetry={() => void courseResourcesQuery.refetch()}
-                    onAdd={() => setIsUploadDialogOpen(true)}
-                    onRename={openRenameDialog}
-                    onDelete={setResourceToDelete}
-                    onDetails={openResourceDetailsDialog}
-                />
+                        <SemesterResourceExplorerList
+                            courseId={effectiveCourseId!}
+                            files={displayedFiles}
+                            isLoading={isListLoading}
+                            isError={isListError}
+                            onRetry={() => void courseResourcesQuery.refetch()}
+                            onAdd={() => setIsUploadDialogOpen(true)}
+                            onRename={openRenameDialog}
+                            onDelete={setResourceToDelete}
+                            onDetails={openResourceDetailsDialog}
+                        />
+                    </>
+                )}
             </div>
 
+            {/* ── Shared dialogs ──────────────────────────────────────────────── */}
             <AddResourceDialog
                 open={isUploadDialogOpen}
                 onOpenChange={setIsUploadDialogOpen}

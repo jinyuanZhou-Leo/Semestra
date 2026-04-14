@@ -48,8 +48,9 @@ const ResourceCard: React.FC<{
     title: string;
     meta: string;
     href?: string;
+    isLink?: boolean;
     unavailable?: boolean;
-}> = ({ title, meta, href, unavailable = false }) => {
+}> = ({ title, meta, href, isLink = false, unavailable = false }) => {
     const content = (
         <div className={cn(
             'flex h-full min-h-0 flex-col justify-between rounded-[24px] bg-muted/40 p-3 text-left transition-colors',
@@ -64,7 +65,7 @@ const ResourceCard: React.FC<{
                     <p className="line-clamp-3 text-sm font-semibold leading-5 text-foreground">
                         {title}
                     </p>
-                    {meta.includes('Saved link') ? <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : null}
+                    {isLink ? <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : null}
                 </div>
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
@@ -157,6 +158,7 @@ const CourseResourcesQuickOpenWidget: React.FC<WidgetProps> = ({ courseId, setti
                             ? 'Saved link'
                             : `${getResourceExtensionLabel(resource)} · ${formatBytes(resource.size_bytes)}`}
                         href={resolveCourseResourceHref(courseId, resource)}
+                        isLink={resource.resource_kind === 'link'}
                     />
                 );
             })}

@@ -31,6 +31,7 @@ INLINE_MIME_TYPES = {
     "application/pdf",
     "application/json",
 }
+# ⚠️ Keep in sync with BLOCKED_UPLOAD_EXTENSIONS in frontend/src/plugins/builtin-course-resources/tab.tsx
 BLOCKED_UPLOAD_EXTENSIONS = {
     ".bat",
     ".bash",
@@ -163,7 +164,8 @@ def should_open_inline(mime_type: str) -> bool:
 
 
 def sanitize_display_name(value: str) -> str:
-    normalized = " ".join((value or "").replace("/", " ").replace("\\", " ").split()).strip()
+    cleaned = (value or "").replace("/", " ").replace("\\", " ").replace("\x00", "")
+    normalized = " ".join(cleaned.split()).strip()
     if not normalized:
         raise CourseResourceStorageError("File name is required.")
     return normalized[:255]
@@ -327,4 +329,10 @@ def delete_course_resource(db: Session, *, base_dir: Path, resource: models.Cour
     db.delete(resource)
     db.commit()
     if absolute_path and absolute_path.is_file():
-        absolute_path.unlink()
+        try:
+            absolute_path.unlink()
+        except OSError:
+            # Disk cleanup is best-effort; the DB record is already removed so
+            # the resource is logically deleted. The orphaned file can be
+            # collected by a future storage sweep if needed.
+            pass
