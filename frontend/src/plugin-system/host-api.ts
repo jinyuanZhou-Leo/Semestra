@@ -1,5 +1,5 @@
-// input:  [plugin host navigation context, runtime instance scope context, plugin-local UI-state helpers, and lazy-load skeleton components]
-// output: [curated host API exports for plugin runtime navigation, instance scope, UI-state caching, and loading shells]
+// input:  [plugin host navigation context, runtime instance scope context, plugin-local UI-state helpers, lazy-load skeleton components, and plugin error boundary]
+// output: [curated host API exports for plugin runtime navigation, instance scope, UI-state caching, loading shells, and PluginErrorBoundary]
 // pos:    [Thin host-facing public surface that exposes stable runtime APIs without leaking plugin loader implementation details]
 //
 // ⚠️ When this file is updated:
@@ -24,3 +24,5 @@ export { buildPluginUiStateStorageKey } from './PluginRuntimeInstanceContext';
 
 export { resetPluginUiStateCacheForTests, usePluginUiState } from './PluginUiState';
 export { PluginContentFadeIn, PluginTabSkeleton, PluginWidgetSkeleton } from './PluginLoadSkeleton';
+export { PluginErrorBoundary } from './PluginErrorBoundary';
+export type { PluginErrorBoundaryProps } from './PluginErrorBoundary';

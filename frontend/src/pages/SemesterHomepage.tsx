@@ -48,6 +48,7 @@ import {
     getResolvedTabMetadataByType,
     getTabComponentByType,
     hasTabPluginForType,
+    PluginErrorBoundary,
     PluginHostProvider,
     PluginRuntimeInstanceProvider,
     PluginSettingsSectionsGroup,
@@ -438,14 +439,20 @@ const SemesterHomepageContent: React.FC = () => {
         }
         return (
             <React.Suspense fallback={<PluginTabSkeleton />}>
-                <PluginRuntimeInstanceProvider value={activeTabRuntimeInstance}>
-                    <PluginContentFadeIn key={activeTab.id}>
-                        <TabComponent
-                            tabId={activeTab.id}
-                            semesterId={semester.id}
-                        />
-                    </PluginContentFadeIn>
-                </PluginRuntimeInstanceProvider>
+                <PluginErrorBoundary
+                    key={activeTab.id}
+                    variant="tab"
+                    label={activeTab.title ?? activeTab.type}
+                >
+                    <PluginRuntimeInstanceProvider value={activeTabRuntimeInstance}>
+                        <PluginContentFadeIn key={activeTab.id}>
+                            <TabComponent
+                                tabId={activeTab.id}
+                                semesterId={semester.id}
+                            />
+                        </PluginContentFadeIn>
+                    </PluginRuntimeInstanceProvider>
+                </PluginErrorBoundary>
             </React.Suspense>
         );
     }, [activeTab, activeTabId, activeTabRuntimeInstance, semester, isActiveTabPluginLoading, activeTabLoadState.status]);

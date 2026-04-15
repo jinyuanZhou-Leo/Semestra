@@ -1,6 +1,6 @@
-// input:  [widget item data, widget registry lookup, plugin lazy loader, runtime instance scope, update/remove callbacks including unavailable-widget override, and widget-header glass control styles]
+// input:  [widget item data, widget registry lookup, plugin lazy loader, runtime instance scope, update/remove callbacks including unavailable-widget override, widget-header glass control styles, and PluginErrorBoundary for render-time crash isolation]
 // output: [`DashboardWidgetWrapper` component]
-// pos:    [Runtime wrapper that mounts plugin widget content, provides widget runtime scope for plugin-local UI state, preserves unavailable-widget delete escape hatches, and renders glassmorphism header controls into the dashboard shell]
+// pos:    [Runtime wrapper that mounts plugin widget content, provides widget runtime scope for plugin-local UI state, preserves unavailable-widget delete escape hatches, renders glassmorphism header controls into the dashboard shell, and isolates plugin render crashes to the affected widget only]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -32,6 +32,7 @@ import {
 import { cn } from '@/lib/utils';
 import {
     PluginContentFadeIn,
+    PluginErrorBoundary,
     PluginRuntimeInstanceProvider,
     useWidgetRenderState,
 } from '../../plugin-system';
@@ -280,16 +281,22 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
                     headerButtons={headerButtons}
                     isEditMode={isEditMode}
                 >
-                    <PluginContentFadeIn>
-                        <WidgetComponent
-                            widgetId={widget.id}
-                            settings={widget.settings || {}}
-                            semesterId={semesterId}
-                            courseId={courseId}
-                            updateSettings={handleUpdateSettings}
-                            updateCourse={updateCourse}
-                        />
-                    </PluginContentFadeIn>
+                    <PluginErrorBoundary
+                        variant="widget"
+                        label={widget.type}
+                        onRemove={onRemove ? handleRemove : onRemoveUnavailable ? handleRemoveUnavailable : undefined}
+                    >
+                        <PluginContentFadeIn>
+                            <WidgetComponent
+                                widgetId={widget.id}
+                                settings={widget.settings || {}}
+                                semesterId={semesterId}
+                                courseId={courseId}
+                                updateSettings={handleUpdateSettings}
+                                updateCourse={updateCourse}
+                            />
+                        </PluginContentFadeIn>
+                    </PluginErrorBoundary>
                 </WidgetContainer>
             )}
         </PluginRuntimeInstanceProvider>
