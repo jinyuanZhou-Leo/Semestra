@@ -24,14 +24,8 @@ from crud_shared import (
 
 def get_programs(db: Session, user_id: str, skip: int = 0, limit: int = 100):
     programs = db.query(models.Program).filter(models.Program.owner_id == user_id).offset(skip).limit(limit).all()
-    did_change = False
     for program in programs:
         _ensure_default_program_plugin_installations(db, program)
-        did_change = _sync_program_subject_color_map(program) or did_change
-    if did_change:
-        db.commit()
-        for program in programs:
-            db.refresh(program)
     return programs
 
 
@@ -64,10 +58,6 @@ def get_program(db: Session, program_id: str, user_id: str):
     if program is None:
         return None
     _ensure_default_program_plugin_installations(db, program)
-    if _sync_program_subject_color_map(program):
-        db.add(program)
-        db.commit()
-        db.refresh(program)
     return program
 
 

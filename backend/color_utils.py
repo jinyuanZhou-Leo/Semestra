@@ -134,9 +134,9 @@ def resolve_subject_color_assignments(
     persisted_assignments: dict[str, str] | None = None,
 ) -> dict[str, str]:
     normalized_codes = sorted({
-        normalize_subject_code(code)
+        nc
         for code in subject_codes
-        if normalize_subject_code(code)
+        if (nc := normalize_subject_code(code))
     })
     normalized_assignments = persisted_assignments or {}
     resolved_map: dict[str, str] = {}

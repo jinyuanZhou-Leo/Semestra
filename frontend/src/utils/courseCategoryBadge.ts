@@ -150,40 +150,28 @@ export const serializeSubjectColorMap = (value: Record<string, string>) => {
 
 export const resolveSubjectColorAssignments = (
   subjectCodes: string[],
-  explicitSubjectColorMap: Record<string, string> = {},
-  lockedAutomaticAssignments: Record<string, string> = {},
+  persistedColorMap: Record<string, string> = {},
 ) => {
   const normalizedCodes = Array.from(new Set(subjectCodes.map((code) => normalizeSubjectCode(code)).filter(Boolean)))
     .sort((left, right) => left.localeCompare(right));
+  const normalizedCodesSet = new Set(normalizedCodes);
   const resolvedMap: Record<string, string> = {};
-  const occupiedColors = new Set<string>([
-    ...Object.entries(explicitSubjectColorMap)
-      .filter(([code, color]) => !normalizedCodes.includes(code) && isHexCourseColor(color))
+  const occupiedColors = new Set<string>(
+    Object.entries(persistedColorMap)
+      .filter(([code, color]) => !normalizedCodesSet.has(code) && isHexCourseColor(color))
       .map(([, color]) => color.toLowerCase()),
-    ...Object.entries(lockedAutomaticAssignments)
-      .filter(([code, color]) => !normalizedCodes.includes(code) && isHexCourseColor(color))
-      .map(([, color]) => color.toLowerCase()),
-  ]);
+  );
 
+  // Tier 1: persisted colors (covers both user-set and previously auto-assigned colors saved to DB)
   normalizedCodes.forEach((code) => {
-    const explicitColor = explicitSubjectColorMap[code];
-    if (!isHexCourseColor(explicitColor)) return;
+    const persisted = persistedColorMap[code];
+    if (!isHexCourseColor(persisted) || occupiedColors.has(persisted.toLowerCase())) return;
 
-    resolvedMap[code] = explicitColor;
-    occupiedColors.add(explicitColor.toLowerCase());
+    resolvedMap[code] = persisted;
+    occupiedColors.add(persisted.toLowerCase());
   });
 
-  normalizedCodes.forEach((code) => {
-    if (resolvedMap[code]) return;
-
-    const lockedColor = lockedAutomaticAssignments[code];
-    if (!isHexCourseColor(lockedColor)) return;
-    if (occupiedColors.has(lockedColor.toLowerCase())) return;
-
-    resolvedMap[code] = lockedColor;
-    occupiedColors.add(lockedColor.toLowerCase());
-  });
-
+  // Tier 2: auto-assign new codes not yet in the persisted map
   normalizedCodes.forEach((code) => {
     if (resolvedMap[code]) return;
 

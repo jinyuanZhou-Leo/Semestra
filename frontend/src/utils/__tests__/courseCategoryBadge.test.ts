@@ -101,17 +101,22 @@ describe('courseCategoryBadge utilities', () => {
 
   it('keeps existing automatic assignments stable when a new code is added', () => {
     const initialResolved = resolveSubjectColorAssignments(['APS', 'MAT'], {});
-    const nextResolved = resolveSubjectColorAssignments(['APS', 'MAT', 'CSC'], {}, initialResolved);
+    // Simulate what happens in production: auto-assigned colors are persisted to DB
+    // and come back as the persistedColorMap on the next resolution.
+    const nextResolved = resolveSubjectColorAssignments(['APS', 'MAT', 'CSC'], initialResolved);
 
     expect(nextResolved.APS).toBe(initialResolved.APS);
     expect(nextResolved.MAT).toBe(initialResolved.MAT);
   });
 
   it('reserves persisted hidden assignments so a new visible code does not steal that color', () => {
+    // AAA was previously in the program; its color was saved to DB.
+    // Even though AAA is no longer visible, passing it in persistedColorMap
+    // keeps its color slot occupied so AAM cannot take it.
     const reservedAssignments = {
       AAA: getAutomaticSubjectColor('AAA'),
     };
-    const nextResolved = resolveSubjectColorAssignments(['AAM'], {}, reservedAssignments);
+    const nextResolved = resolveSubjectColorAssignments(['AAM'], reservedAssignments);
 
     expect(nextResolved.AAM).not.toBe(reservedAssignments.AAA);
   });

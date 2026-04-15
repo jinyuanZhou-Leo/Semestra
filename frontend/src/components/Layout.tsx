@@ -35,7 +35,7 @@ import { cn } from '@/lib/utils';
 import { ThemeToggle } from './ThemeToggle';
 import { useTheme } from './ThemeProvider';
 import { Kbd } from '@/components/ui/kbd';
-import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, resolveCourseColor } from '@/utils/courseCategoryBadge';
+import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor } from '@/utils/courseCategoryBadge';
 import {
     getProgramDetailQueryOptions,
     getProgramsListQueryOptions,
@@ -406,6 +406,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                             programDetail: Program & { semesters: Semester[] };
                             unassignedCourses: Course[];
                         }) => {
+                            const subjectColorMap = parseSubjectColorMap(program.subject_color_map);
                             const assignedCourses = programDetail.semesters
                                 .filter((semester: Semester) => semester.lifecycle_state !== 'draft')
                                 .flatMap((semester: Semester) => (semester.courses ?? []).map((course: Course) => ({
@@ -417,7 +418,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                                             label: course.category.trim(),
                                             variant: 'outline' as const,
                                             className: `h-5 shrink-0 border-0 px-1.5 text-[11px] font-medium ${getCourseCategoryBadgeClassName(course.category, course.id)}`,
-                                            style: getCourseBadgeStyle(resolveCourseColor(course)),
+                                            style: getCourseBadgeStyle(resolveCourseColor(course, subjectColorMap)),
                                         }]
                                         : undefined,
                                     description: `${program.name} / ${semester.name}`,
@@ -435,7 +436,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                                         label: course.category.trim(),
                                         variant: 'outline' as const,
                                         className: `h-5 shrink-0 border-0 px-1.5 text-[11px] font-medium ${getCourseCategoryBadgeClassName(course.category, course.id)}`,
-                                        style: getCourseBadgeStyle(resolveCourseColor(course)),
+                                        style: getCourseBadgeStyle(resolveCourseColor(course, subjectColorMap)),
                                     }]
                                     : undefined,
                                 description: `${program.name} / Unassigned`,

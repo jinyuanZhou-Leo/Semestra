@@ -166,6 +166,7 @@ interface ProgramFocusBoardProps {
   programCourses: ProgramCourseWithContext[];
   settings: ProgramHomeSettings;
   onCommit: (settings: ProgramHomeSettings) => Promise<void>;
+  subjectColorMap: Record<string, string>;
 }
 
 const entityMeta = {
@@ -236,7 +237,8 @@ const FocusBoardCard: React.FC<{
   isDragging: boolean;
   onChangeSize: (size: ProgramHomeCardSize) => void;
   onRemove: () => void;
-}> = ({ entity, isEditing, isDragging, onChangeSize, onRemove }) => {
+  subjectColorMap: Record<string, string>;
+}> = ({ entity, isEditing, isDragging, onChangeSize, onRemove, subjectColorMap }) => {
   const meta = entityMeta[entity.entityType];
   const Icon = meta.icon;
   const size = entity.item.size;
@@ -363,7 +365,7 @@ const FocusBoardCard: React.FC<{
                     <Badge
                       variant="outline"
                       className={cn(focusBoardBadgeClassName, 'max-w-[4.75rem] shrink-0')}
-                      style={getCourseBadgeStyle(resolveCourseColor(entity.course))}
+                      style={getCourseBadgeStyle(resolveCourseColor(entity.course, subjectColorMap))}
                     >
                       <span className="truncate">{entity.course.category.trim()}</span>
                     </Badge>
@@ -380,7 +382,7 @@ const FocusBoardCard: React.FC<{
                       <Badge
                         variant="outline"
                         className={cn(focusBoardBadgeClassName, 'max-w-full')}
-                        style={getCourseBadgeStyle(resolveCourseColor(entity.course))}
+                        style={getCourseBadgeStyle(resolveCourseColor(entity.course, subjectColorMap))}
                       >
                         <span className="truncate">{entity.course.category.trim()}</span>
                       </Badge>
@@ -399,7 +401,7 @@ const FocusBoardCard: React.FC<{
                     <Badge
                       variant="outline"
                       className={cn(focusBoardBadgeClassName, 'max-w-full')}
-                      style={getCourseBadgeStyle(resolveCourseColor(entity.course))}
+                      style={getCourseBadgeStyle(resolveCourseColor(entity.course, subjectColorMap))}
                     >
                       <span className="truncate">{entity.course.category.trim()}</span>
                     </Badge>
@@ -429,6 +431,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   programCourses,
   settings,
   onCommit,
+  subjectColorMap,
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragRuntimeState | null>(null);
@@ -552,7 +555,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
       chronologyKey: course.semesterStartDate ?? '',
       alias: course.alias?.trim() || '',
       category: course.category?.trim() || '',
-      badgeStyle: getCourseBadgeStyle(resolveCourseColor(course)),
+      badgeStyle: getCourseBadgeStyle(resolveCourseColor(course, subjectColorMap)),
     }));
 
     return [...semesterCandidates, ...courseCandidates]
@@ -570,7 +573,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
         }
         return left.title.localeCompare(right.title);
       });
-  }, [candidateSort, pinnedKeys, programCourses, searchQuery, semesters]);
+  }, [candidateSort, pinnedKeys, programCourses, searchQuery, semesters, subjectColorMap]);
 
   const semesterCandidates = useMemo(
     () => addCandidates.filter((candidate) => candidate.entityType === 'semester'),
@@ -979,6 +982,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
                         entity={entity}
                         isEditing={isEditing}
                         isDragging={isDragging}
+                        subjectColorMap={subjectColorMap}
                         onChangeSize={(size) => {
                           const resizedSettings = updateProgramHomeItemSize(
                             settings,

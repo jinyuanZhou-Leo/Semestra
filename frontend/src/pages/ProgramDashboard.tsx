@@ -755,6 +755,13 @@ const ProgramDashboardContent: React.FC = () => {
         [programCourses],
     );
 
+    const resolvedSubjectColorMap = useMemo(() => {
+        const subjectCodes = programCourses
+            .map((course) => resolveCourseSubjectCode(course))
+            .filter(Boolean);
+        return resolveSubjectColorAssignments(subjectCodes, subjectColorMap);
+    }, [programCourses, subjectColorMap]);
+
     useEffect(() => {
         void refreshUnassignedCourses();
     }, [refreshUnassignedCourses]);
@@ -1070,6 +1077,7 @@ const ProgramDashboardContent: React.FC = () => {
                                 programCourses={programCourses}
                                 settings={programHomeSettings}
                                 onCommit={commitProgramHomeSettings}
+                                subjectColorMap={resolvedSubjectColorMap}
                             />
 
                             <Separator />
