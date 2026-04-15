@@ -38,6 +38,91 @@ import {
 import { jsonDeepEqual } from '../../plugin-system/utils';
 import { PluginWidgetSkeleton } from '../../plugin-system/PluginLoadSkeleton';
 
+const IS_TOUCH_DEVICE = window.matchMedia('(pointer: coarse)').matches;
+const headerControlSizeClass = IS_TOUCH_DEVICE ? 'h-9 w-9 text-base' : 'h-7 w-7 text-sm';
+const glassControlClass =
+    'rounded-full border border-border/60 bg-background/82 text-muted-foreground/90 shadow-sm backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/68 transition-colors';
+const glassControlHoverClass =
+    'hover:bg-background/92 supports-[backdrop-filter]:hover:bg-background/80 hover:text-foreground';
+
+const ActionButton: React.FC<HeaderActionButtonProps> = ({
+    title,
+    icon,
+    onClick,
+    variant = 'outline'
+}) => (
+    <Button
+        type="button"
+        variant={variant}
+        size="icon"
+        title={title}
+        data-widget-control
+        className={cn(
+            glassControlClass,
+            glassControlHoverClass,
+            headerControlSizeClass
+        )}
+        onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void onClick();
+        }}
+    >
+        {icon}
+    </Button>
+);
+
+const ConfirmActionButton: React.FC<HeaderConfirmActionButtonProps> = ({
+    title,
+    icon,
+    onClick,
+    variant = 'outline',
+    dialogTitle,
+    dialogDescription = 'This action cannot be undone.',
+    confirmText = 'Confirm',
+    cancelText = 'Cancel',
+    confirmVariant = 'destructive'
+}) => (
+    <AlertDialog>
+        <AlertDialogTrigger asChild>
+            <Button
+                type="button"
+                variant={variant}
+                size="icon"
+                title={title}
+                data-widget-control
+                className={cn(
+                    glassControlClass,
+                    glassControlHoverClass,
+                    headerControlSizeClass
+                )}
+                onClick={(event) => {
+                    event.stopPropagation();
+                }}
+            >
+                {icon}
+            </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent size="sm">
+            <AlertDialogHeader>
+                <AlertDialogTitle>{dialogTitle}</AlertDialogTitle>
+                <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>{cancelText}</AlertDialogCancel>
+                <AlertDialogAction
+                    variant={confirmVariant}
+                    onClick={() => {
+                        void onClick();
+                    }}
+                >
+                    {confirmText}
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+);
+
 interface DashboardWidgetWrapperProps {
     widget: WidgetItem;
     index?: number;
@@ -121,91 +206,6 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
         if (!widgetDefinition?.headerButtons || widgetDefinition.headerButtons.length === 0) {
             return null;
         }
-
-        const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
-        const controlSizeClass = isTouchDevice ? 'h-9 w-9 text-base' : 'h-7 w-7 text-sm';
-        const glassControlClass =
-            'rounded-full border border-border/60 bg-background/82 text-muted-foreground/90 shadow-sm backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/68 transition-colors';
-        const glassControlHoverClass =
-            'hover:bg-background/92 supports-[backdrop-filter]:hover:bg-background/80 hover:text-foreground';
-
-        const ActionButton: React.FC<HeaderActionButtonProps> = ({
-            title,
-            icon,
-            onClick,
-            variant = 'outline'
-        }) => (
-            <Button
-                type="button"
-                variant={variant}
-                size="icon"
-                title={title}
-                data-widget-control
-                className={cn(
-                    glassControlClass,
-                    glassControlHoverClass,
-                    controlSizeClass
-                )}
-                onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    void onClick();
-                }}
-            >
-                {icon}
-            </Button>
-        );
-
-        const ConfirmActionButton: React.FC<HeaderConfirmActionButtonProps> = ({
-            title,
-            icon,
-            onClick,
-            variant = 'outline',
-            dialogTitle,
-            dialogDescription = 'This action cannot be undone.',
-            confirmText = 'Confirm',
-            cancelText = 'Cancel',
-            confirmVariant = 'destructive'
-        }) => (
-            <AlertDialog>
-                <AlertDialogTrigger asChild>
-                    <Button
-                        type="button"
-                        variant={variant}
-                        size="icon"
-                        title={title}
-                        data-widget-control
-                        className={cn(
-                            glassControlClass,
-                            glassControlHoverClass,
-                            controlSizeClass
-                        )}
-                        onClick={(event) => {
-                            event.stopPropagation();
-                        }}
-                    >
-                        {icon}
-                    </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent size="sm">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>{dialogTitle}</AlertDialogTitle>
-                        <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>{cancelText}</AlertDialogCancel>
-                        <AlertDialogAction
-                            variant={confirmVariant}
-                            onClick={() => {
-                                void onClick();
-                            }}
-                        >
-                            {confirmText}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        );
 
         const context: HeaderButtonContext = {
             widgetId: widget.id,

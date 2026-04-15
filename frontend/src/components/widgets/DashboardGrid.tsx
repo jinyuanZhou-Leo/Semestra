@@ -34,6 +34,8 @@ const RESIZE_WIDTH_DELTA_PX = 16;
 const RESIZE_COMMIT_INTERVAL_MS = 120;
 const RESIZE_SETTLE_DELAY_MS = 180;
 const MOBILE_BREAKPOINTS = new Set<keyof typeof GRID_BREAKPOINTS>(['sm', 'xs', 'xxs']);
+const SORTED_BREAKPOINTS = (Object.entries(GRID_BREAKPOINTS) as Array<[keyof typeof GRID_BREAKPOINTS, number]>)
+    .sort((l, r) => r[1] - l[1]);
 
 export type DeviceLayoutMode = 'desktop' | 'mobile';
 
@@ -54,9 +56,7 @@ const getDeviceLayoutModeByBreakpoint = (breakpoint: keyof typeof GRID_BREAKPOIN
 };
 
 const getBreakpointByWidth = (width: number): keyof typeof GRID_BREAKPOINTS => {
-    const sorted = (Object.entries(GRID_BREAKPOINTS) as Array<[keyof typeof GRID_BREAKPOINTS, number]>)
-        .sort((left, right) => right[1] - left[1]);
-    for (const [breakpoint, minWidth] of sorted) {
+    for (const [breakpoint, minWidth] of SORTED_BREAKPOINTS) {
         if (width >= minWidth) return breakpoint;
     }
     return 'xxs';
@@ -198,6 +198,10 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
         return computeGridUnitSize(effectiveGridWidth, GRID_COLS[breakpoint], GRID_MARGIN, GRID_CONTAINER_PADDING);
     }, [effectiveGridWidth]);
 
+    const handleInteractionStart = React.useCallback(() => {
+        isUserInteractingRef.current = true;
+    }, []);
+
     const getActiveLayoutContext = React.useCallback(() => {
         const breakpoint = activeBreakpointRef.current;
         return {
@@ -216,6 +220,22 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
         const context = getActiveLayoutContext();
         onLayoutCommit(layout, context.deviceMode, context.maxCols);
     }, [getActiveLayoutContext, isEditMode, onLayoutCommit]);
+
+    const handleInteractionStop = React.useCallback((layout: Layout) => {
+        syncLocalLayout(layout);
+        commitUserLayout(layout);
+        isUserInteractingRef.current = false;
+    }, [syncLocalLayout, commitUserLayout]);
+
+    const handleLayoutChange = React.useCallback((layout: Layout) => {
+        if (isUserInteractingRef.current) syncLocalLayout(layout);
+    }, [syncLocalLayout]);
+
+    const handleBreakpointChange = React.useCallback((newBreakpoint: string) => {
+        if (newBreakpoint in GRID_BREAKPOINTS) {
+            activeBreakpointRef.current = newBreakpoint as keyof typeof GRID_BREAKPOINTS;
+        }
+    }, []);
 
     const getWidgetLayoutForDevice = React.useCallback((layout: WidgetResponsiveLayout | undefined, deviceMode: DeviceLayoutMode) => {
         if (!layout) return undefined;
@@ -318,33 +338,13 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                     containerPadding={GRID_CONTAINER_PADDING}
                     // Skip reflow-driven sync to avoid heavy state churn when overlays lock page scroll.
                     // Local sync should happen while users are actively dragging/resizing.
-                    onLayoutChange={(layout: Layout) => {
-                        if (isUserInteractingRef.current) {
-                            syncLocalLayout(layout);
-                        }
-                    }}
-                    onDragStart={() => {
-                        isUserInteractingRef.current = true;
-                    }}
+                    onLayoutChange={handleLayoutChange}
+                    onDragStart={handleInteractionStart}
                     // Persist only on explicit user actions to avoid reflow-driven backend writes.
-                    onDragStop={(layout: Layout) => {
-                        syncLocalLayout(layout);
-                        commitUserLayout(layout);
-                        isUserInteractingRef.current = false;
-                    }}
-                    onResizeStart={() => {
-                        isUserInteractingRef.current = true;
-                    }}
-                    onResizeStop={(layout: Layout) => {
-                        syncLocalLayout(layout);
-                        commitUserLayout(layout);
-                        isUserInteractingRef.current = false;
-                    }}
-                    onBreakpointChange={(newBreakpoint: string) => {
-                        if (newBreakpoint in GRID_BREAKPOINTS) {
-                            activeBreakpointRef.current = newBreakpoint as keyof typeof GRID_BREAKPOINTS;
-                        }
-                    }}
+                    onDragStop={handleInteractionStop}
+                    onResizeStart={handleInteractionStart}
+                    onResizeStop={handleInteractionStop}
+                    onBreakpointChange={handleBreakpointChange}
                     dragConfig={{
                         enabled: isEditMode,
                         handle: isTouchDevice ? '.drag-surface' : '.drag-handle',

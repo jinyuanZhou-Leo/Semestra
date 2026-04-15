@@ -17,16 +17,17 @@ import type { TabDefinition, TabProps } from '@/plugin-system';
 import { Check, Pencil, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
+const fabBaseButtonClassName =
+    "border border-border/80 bg-background/95 text-foreground shadow-[0_10px_24px_color-mix(in_srgb,var(--color-foreground)_12%,transparent)] dark:shadow-none backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/88 hover:bg-background hover:text-foreground hover:border-border transition-colors duration-200";
+const fabActiveButtonClassName =
+    "border border-emerald-500/56 bg-emerald-200/58 supports-[backdrop-filter]:bg-emerald-200/42 text-emerald-900 hover:bg-emerald-200/68 hover:text-emerald-950 shadow-[0_0_0_1px_rgba(16,185,129,0.22),0_10px_20px_rgba(16,185,129,0.2)] dark:border-emerald-300/44 dark:bg-emerald-900/72 dark:supports-[backdrop-filter]:bg-emerald-900/62 dark:text-emerald-100 dark:hover:bg-emerald-900/80 dark:hover:text-emerald-50 dark:shadow-none backdrop-blur-md backdrop-saturate-150 transition-colors duration-200";
+const checkIconClassName =
+    "h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-200";
+const pencilIconClassName =
+    "h-5 w-5 shrink-0 text-foreground/80";
+
 const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     const { isLoading, dashboard } = useBuiltinDashboardContext();
-    const fabBaseButtonClassName =
-        "border border-border/80 bg-background/95 text-foreground shadow-[0_10px_24px_color-mix(in_srgb,var(--color-foreground)_12%,transparent)] dark:shadow-none backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/88 hover:bg-background hover:text-foreground hover:border-border transition-colors duration-200";
-    const fabActiveButtonClassName =
-        "border border-emerald-500/56 bg-emerald-200/58 supports-[backdrop-filter]:bg-emerald-200/42 text-emerald-900 hover:bg-emerald-200/68 hover:text-emerald-950 shadow-[0_0_0_1px_rgba(16,185,129,0.22),0_10px_20px_rgba(16,185,129,0.2)] dark:border-emerald-300/44 dark:bg-emerald-900/72 dark:supports-[backdrop-filter]:bg-emerald-900/62 dark:text-emerald-100 dark:hover:bg-emerald-900/80 dark:hover:text-emerald-50 dark:shadow-none backdrop-blur-md backdrop-saturate-150 transition-colors duration-200";
-    const checkIconClassName =
-        "h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-200";
-    const pencilIconClassName =
-        "h-5 w-5 shrink-0 text-foreground/80";
 
     const {
         state: isEditMode,
