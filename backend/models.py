@@ -127,7 +127,8 @@ class Program(Base):
     subject_color_map = Column(Text, nullable=False, default="{}") # JSON: {"APS": "#2563eb", ...}
     grad_requirement_credits = Column(Float, default=0.0)
     hide_gpa = Column(Boolean, default=False)
-    
+    plugin_auto_enable_semesters = Column(String, nullable=False, default="ask")
+
     # Relationships
     owner = relationship("User", back_populates="programs")
     lms_integration = relationship("LmsIntegration", back_populates="programs")
@@ -225,6 +226,7 @@ class SemesterPluginActivation(Base):
         nullable=False,
     )
     is_enabled = Column(Boolean, nullable=False, default=True)
+    pending_activation_review = Column(Boolean, nullable=False, default=False)
     created_at = Column(String, nullable=False, default="")
     updated_at = Column(String, nullable=False, default="")
 

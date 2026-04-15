@@ -896,14 +896,23 @@ def sync_course_link(
     course = _require_course_record(db, user_id, course_id)
     link = _require_course_link(db, course)
     integration = _require_integration_record(db, user_id, link.lms_integration_id)
-    if payload and payload.sync_enabled is not None:
-        link.sync_enabled = bool(payload.sync_enabled)
+
+    # Capture everything needed before releasing the DB connection
+    link_id = link.id
+    external_course_id = link.external_course_id
+    next_sync_enabled = bool(payload.sync_enabled) if payload and payload.sync_enabled is not None else None
+    provider_impl, config, credentials = _integration_runtime(integration)
+
+    # Release the DB connection to the pool before the blocking network call (up to 30s)
+    db.close()
 
     try:
-        course_summary = _fetch_external_course(integration, link.external_course_id)
-        _populate_course_link_from_summary(link, course_summary)
+        course_summary = provider_impl.get_course(config, credentials, external_course_id)
     except Exception as exc:
         mapped = _map_lms_exception(exc)
+        link = db.query(models.CourseLmsLink).filter(models.CourseLmsLink.id == link_id).first()
+        if next_sync_enabled is not None:
+            link.sync_enabled = next_sync_enabled
         link.last_error_code = mapped.code
         link.last_error_message = mapped.message
         _touch_timestamps(link)
@@ -911,6 +920,10 @@ def sync_course_link(
         db.commit()
         raise mapped from exc
 
+    link = db.query(models.CourseLmsLink).filter(models.CourseLmsLink.id == link_id).first()
+    if next_sync_enabled is not None:
+        link.sync_enabled = next_sync_enabled
+    _populate_course_link_from_summary(link, course_summary)
     db.add(link)
     db.commit()
     db.refresh(link)

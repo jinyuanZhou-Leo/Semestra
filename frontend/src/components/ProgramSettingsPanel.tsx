@@ -73,6 +73,7 @@ interface ProgramSettingsPanelProps {
     gpa_scaling_table?: string;
     subject_color_map?: string;
     hide_gpa?: boolean;
+    plugin_auto_enable_semesters?: 'yes' | 'no' | 'ask';
     lms_integration_id?: string | null;
     has_lms_dependencies?: boolean;
   };
@@ -84,6 +85,7 @@ interface ProgramSettingsPanelProps {
     gpa_scaling_table: string;
     subject_color_map: string;
     hide_gpa: boolean;
+    plugin_auto_enable_semesters: 'yes' | 'no' | 'ask';
     lms_integration_id: string | null;
   }) => Promise<void>;
   registerFlush?: (flush: () => Promise<void>) => void;
@@ -100,6 +102,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
   const [name, setName] = useState(initialName);
   const [gradCredits, setGradCredits] = useState(String(initialSettings?.grad_requirement_credits || ""));
   const [hideGpa, setHideGpa] = useState(initialSettings?.hide_gpa ?? false);
+  const [pluginAutoEnableSemesters, setPluginAutoEnableSemesters] = useState<'yes' | 'no' | 'ask'>(initialSettings?.plugin_auto_enable_semesters ?? 'ask');
   const [lmsIntegrationId, setLmsIntegrationId] = useState(initialSettings?.lms_integration_id ?? "__none__");
   const [gpaTableJson, setGpaTableJson] = useState(initialSettings?.gpa_scaling_table || "{}");
   const [subjectColorMap, setSubjectColorMap] = useState<Record<string, string>>(
@@ -110,6 +113,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
   const fieldId = useId();
   const initialGradCredits = String(initialSettings?.grad_requirement_credits || "");
   const initialHideGpa = initialSettings?.hide_gpa ?? false;
+  const initialPluginAutoEnableSemesters = initialSettings?.plugin_auto_enable_semesters ?? 'ask';
   const initialLmsIntegrationId = initialSettings?.lms_integration_id ?? "__none__";
   const initialGpaTableJson = initialSettings?.gpa_scaling_table || "{}";
   const initialSubjectColorMap = useMemo(
@@ -156,22 +160,24 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
       name: initialName,
       gradCredits: initialGradCredits,
       hideGpa: initialHideGpa,
+      pluginAutoEnableSemesters: initialPluginAutoEnableSemesters,
       lmsIntegrationId: initialLmsIntegrationId,
       gpaTableJson: initialGpaTableJson,
       subjectColorMapJson: initialSubjectColorMapJson,
     }),
-    [initialGpaTableJson, initialGradCredits, initialHideGpa, initialLmsIntegrationId, initialName, initialSubjectColorMapJson],
+    [initialGpaTableJson, initialGradCredits, initialHideGpa, initialPluginAutoEnableSemesters, initialLmsIntegrationId, initialName, initialSubjectColorMapJson],
   );
   const draftSnapshot = useMemo(
     () => ({
       name,
       gradCredits,
       hideGpa,
+      pluginAutoEnableSemesters,
       lmsIntegrationId,
       gpaTableJson,
       subjectColorMapJson,
     }),
-    [gpaTableJson, gradCredits, hideGpa, lmsIntegrationId, name, subjectColorMapJson],
+    [gpaTableJson, gradCredits, hideGpa, pluginAutoEnableSemesters, lmsIntegrationId, name, subjectColorMapJson],
   );
   const lastLoadedSnapshotRef = useRef(savedSnapshot);
 
@@ -181,6 +187,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
       previousSnapshot.name !== savedSnapshot.name ||
       previousSnapshot.gradCredits !== savedSnapshot.gradCredits ||
       previousSnapshot.hideGpa !== savedSnapshot.hideGpa ||
+      previousSnapshot.pluginAutoEnableSemesters !== savedSnapshot.pluginAutoEnableSemesters ||
       previousSnapshot.lmsIntegrationId !== savedSnapshot.lmsIntegrationId ||
       previousSnapshot.gpaTableJson !== savedSnapshot.gpaTableJson ||
       previousSnapshot.subjectColorMapJson !== savedSnapshot.subjectColorMapJson;
@@ -188,6 +195,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
       previousSnapshot.name !== draftSnapshot.name ||
       previousSnapshot.gradCredits !== draftSnapshot.gradCredits ||
       previousSnapshot.hideGpa !== draftSnapshot.hideGpa ||
+      previousSnapshot.pluginAutoEnableSemesters !== draftSnapshot.pluginAutoEnableSemesters ||
       previousSnapshot.lmsIntegrationId !== draftSnapshot.lmsIntegrationId ||
       previousSnapshot.gpaTableJson !== draftSnapshot.gpaTableJson ||
       previousSnapshot.subjectColorMapJson !== draftSnapshot.subjectColorMapJson;
@@ -195,6 +203,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
       savedSnapshot.name === draftSnapshot.name &&
       savedSnapshot.gradCredits === draftSnapshot.gradCredits &&
       savedSnapshot.hideGpa === draftSnapshot.hideGpa &&
+      savedSnapshot.pluginAutoEnableSemesters === draftSnapshot.pluginAutoEnableSemesters &&
       savedSnapshot.lmsIntegrationId === draftSnapshot.lmsIntegrationId &&
       savedSnapshot.gpaTableJson === draftSnapshot.gpaTableJson &&
       savedSnapshot.subjectColorMapJson === draftSnapshot.subjectColorMapJson;
@@ -206,6 +215,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
     setName(savedSnapshot.name);
     setGradCredits(savedSnapshot.gradCredits);
     setHideGpa(savedSnapshot.hideGpa);
+    setPluginAutoEnableSemesters(savedSnapshot.pluginAutoEnableSemesters);
     setLmsIntegrationId(savedSnapshot.lmsIntegrationId);
     setGpaTableJson(savedSnapshot.gpaTableJson);
     setSubjectColorMap(initialSubjectColorMap);
@@ -232,6 +242,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
         gpa_scaling_table: snapshot.gpaTableJson,
         subject_color_map: snapshot.subjectColorMapJson,
         hide_gpa: snapshot.hideGpa,
+        plugin_auto_enable_semesters: snapshot.pluginAutoEnableSemesters,
         lms_integration_id: snapshot.lmsIntegrationId === "__none__" ? null : snapshot.lmsIntegrationId,
       });
     },
@@ -313,6 +324,28 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
                 aria-label="Hide GPA Info"
                 className="shrink-0"
               />
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor={`${fieldId}-plugin-auto-enable`}>New Plugin Default for Semesters</FieldLabel>
+              <FieldDescription>
+                When a new plugin is installed to this Program, decide what happens to existing Semesters.
+              </FieldDescription>
+              <Select
+                value={pluginAutoEnableSemesters}
+                onValueChange={(value) => setPluginAutoEnableSemesters(value as 'yes' | 'no' | 'ask')}
+              >
+                <SelectTrigger id={`${fieldId}-plugin-auto-enable`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="yes">Automatically enable in all Semesters</SelectItem>
+                    <SelectItem value="no">Do not enable in existing Semesters</SelectItem>
+                    <SelectItem value="ask">Ask me each time</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </Field>
           </FieldGroup>
         </FieldSet>

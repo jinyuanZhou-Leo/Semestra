@@ -39,7 +39,20 @@ import { SemesterCourseManagementSection } from '../components/SemesterCourseMan
 import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
 import { WorkspaceNav } from '../components/WorkspaceNav';
 import { WorkspaceOverviewStats } from '../components/WorkspaceOverviewStats';
-import { BookOpen, GraduationCap, Percent, Plus, Settings, LayoutDashboard } from 'lucide-react';
+import { BookOpen, GraduationCap, Percent, Plus, Settings, LayoutDashboard, PackagePlus } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { IconCircle } from '../components/IconCircle';
+import { getPluginIconById } from '../plugin-system';
+import type { SemesterPluginActivation } from '../services/api';
+import { toast } from 'sonner';
 import { formatGpaPercentage } from '@/utils/percentage';
 import type { LayoutCommandGroup } from '../components/GlobalCommandPalette';
 
@@ -93,6 +106,9 @@ const SemesterHomepageContent: React.FC = () => {
     const queryClient = useQueryClient();
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
+    const [isPendingReviewOpen, setIsPendingReviewOpen] = useState(false);
+    const [pendingReviewToggles, setPendingReviewToggles] = useState<Record<string, boolean>>({});
+const [isConfirmingPending, setIsConfirmingPending] = useState(false);
     const [activeTabId, setActiveTabId] = useState('');
     const lastActiveTabTypeRef = useRef<string | null>(null);
     const openAddWidgetModal = useCallback(() => {
@@ -506,6 +522,68 @@ const SemesterHomepageContent: React.FC = () => {
         }
     }, [parentProgramQuery.data, queryClient, semester]);
 
+    const pendingPlugins = useMemo<SemesterPluginActivation[]>(
+        () => (semester?.plugin_activations ?? []).filter((a) => a.pending_activation_review),
+        [semester?.plugin_activations],
+    );
+
+    const handleOpenPendingReview = useCallback(() => {
+        const defaults: Record<string, boolean> = {};
+        for (const plugin of pendingPlugins) {
+            defaults[plugin.plugin_id] = false;
+        }
+        setPendingReviewToggles(defaults);
+        setIsPendingReviewOpen(true);
+    }, [pendingPlugins]);
+
+    const pendingToastIdRef = useRef<string | number | null>(null);
+    useEffect(() => {
+        if (isLoading || !semester) return;
+        if (pendingPlugins.length === 0) {
+            if (pendingToastIdRef.current !== null) {
+                toast.dismiss(pendingToastIdRef.current);
+                pendingToastIdRef.current = null;
+            }
+            return;
+        }
+        const message = pendingPlugins.length === 1
+            ? '1 new plugin is available from your Program.'
+            : `${pendingPlugins.length} new plugins are available from your Program.`;
+        const id = toast.message(message, {
+            icon: <PackagePlus className="h-4 w-4" />,
+            duration: Infinity,
+            action: { label: 'Review', onClick: handleOpenPendingReview },
+            onDismiss: () => { void handleDismissPending(); },
+            id: pendingToastIdRef.current ?? undefined,
+        });
+        pendingToastIdRef.current = id;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isLoading, semester?.id, pendingPlugins.length]);
+
+    const handleDismissPending = useCallback(async () => {
+        if (!semester?.id) return;
+        await api.dismissSemesterPendingPluginActivations(semester.id);
+        await refreshSemester();
+    }, [semester?.id, refreshSemester]);
+
+    const handleConfirmPendingReview = useCallback(async () => {
+        if (!semester?.id) return;
+        setIsConfirmingPending(true);
+        try {
+            await Promise.all(
+                pendingPlugins.map((plugin) =>
+                    api.upsertSemesterPluginActivation(semester.id, plugin.plugin_id, {
+                        is_enabled: pendingReviewToggles[plugin.plugin_id] ?? false,
+                    }),
+                ),
+            );
+            await refreshSemester();
+            setIsPendingReviewOpen(false);
+        } finally {
+            setIsConfirmingPending(false);
+        }
+    }, [semester?.id, pendingPlugins, pendingReviewToggles, refreshSemester]);
+
     const pluginSettingsSections = useMemo(() => {
         const pluginActivations = semester?.plugin_activations ?? [];
         if (pluginActivations.length === 0 || enabledPluginIds.size === 0) {
@@ -645,6 +723,56 @@ const SemesterHomepageContent: React.FC = () => {
                                 dashboardContent
                         )}
                     </Container>
+
+                    <Dialog open={isPendingReviewOpen} onOpenChange={setIsPendingReviewOpen}>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>New plugins available</DialogTitle>
+                                <DialogDescription>
+                                    The following plugins were recently added to your Program. Choose which ones to enable for this Semester.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-3 py-2">
+                                {pendingPlugins.map((plugin) => (
+                                    <div key={plugin.plugin_id} className="flex items-center gap-3">
+                                        <IconCircle
+                                            icon={getPluginIconById(plugin.plugin_id)}
+                                            label={plugin.display_name}
+                                            size={30}
+                                            className="shrink-0 bg-muted text-foreground"
+                                        />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-medium">{plugin.display_name}</p>
+                                            <p className="truncate text-xs text-muted-foreground">{plugin.description}</p>
+                                        </div>
+                                        <Switch
+                                            checked={pendingReviewToggles[plugin.plugin_id] ?? false}
+                                            onCheckedChange={(checked) =>
+                                                setPendingReviewToggles((prev) => ({ ...prev, [plugin.plugin_id]: checked }))
+                                            }
+                                            aria-label={`Enable ${plugin.display_name}`}
+                                            className="shrink-0"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            <DialogFooter>
+                                <Button
+                                    variant="outline"
+                                    disabled={isConfirmingPending}
+                                    onClick={() => setIsPendingReviewOpen(false)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    disabled={isConfirmingPending}
+                                    onClick={() => void handleConfirmPendingReview()}
+                                >
+                                    Save
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
 
                     {semester && (
                         <>

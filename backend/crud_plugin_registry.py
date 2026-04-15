@@ -390,6 +390,19 @@ def _normalize_auth_state(plugin_id: str, auth_state: str | None) -> str:
 
 
 def _ensure_default_program_plugin_installations(db: Session, program: models.Program) -> None:
+    # Fast-exit: in steady state all defaults are installed and all IDs are already canonical/non-reserved.
+    # plugin_installations is already loaded in memory (via selectinload), so this is pure Python.
+    _current = list(program.plugin_installations)
+    _current_ids = {p.plugin_id for p in _current}
+    if (
+        set(plugin_registry.get_default_program_plugin_ids()).issubset(_current_ids)
+        and all(
+            _canonical_plugin_id(p.plugin_id) == p.plugin_id
+            and not plugin_registry.is_host_reserved_plugin_id(p.plugin_id)
+            for p in _current
+        )
+    ):
+        return
     _normalize_program_plugin_installations(db, program)
     existing_plugin_ids = {_canonical_plugin_id(installation.plugin_id) for installation in program.plugin_installations}
     now = _now_utc_iso()
@@ -758,6 +771,7 @@ def _serialize_semester_plugin_activation(
         "locked": installation_payload["locked"],
         "version": installation.version,
         "is_enabled": bool(activation.is_enabled) if activation is not None else False,
+        "pending_activation_review": bool(activation.pending_activation_review) if activation is not None else False,
         "auth_state": installation.auth_state,
         "capabilities": installation_payload["capabilities"],
         "setup_sections": installation_payload["setup_sections"],
@@ -883,6 +897,67 @@ def get_program_plugin_installations(db: Session, program_id: str) -> list[dict]
     ]
 
 
+_PLUGIN_AUTO_ENABLE_ALLOWED = {"yes", "no", "ask"}
+
+
+def _propagate_new_installation_to_semesters(
+    db: Session,
+    program: models.Program,
+    installation: models.ProgramPluginInstallation,
+) -> None:
+    setting = (program.plugin_auto_enable_semesters or "ask").strip()
+    if setting not in _PLUGIN_AUTO_ENABLE_ALLOWED:
+        setting = "ask"
+    if setting == "no":
+        return
+
+    semesters = (
+        db.query(models.Semester)
+        .filter(
+            models.Semester.program_id == program.id,
+            models.Semester.lifecycle_state != "archived",
+        )
+        .all()
+    )
+    if not semesters:
+        return
+
+    existing_semester_ids = {
+        activation.semester_id
+        for activation in db.query(models.SemesterPluginActivation.semester_id)
+        .filter(models.SemesterPluginActivation.program_plugin_installation_id == installation.id)
+        .all()
+    }
+
+    now = _now_utc_iso()
+    did_change = False
+    for semester in semesters:
+        if semester.id in existing_semester_ids:
+            continue
+        db.add(
+            models.SemesterPluginActivation(
+                semester_id=semester.id,
+                program_plugin_installation_id=installation.id,
+                is_enabled=(setting == "yes"),
+                pending_activation_review=(setting == "ask"),
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        did_change = True
+
+    if did_change:
+        db.commit()
+
+
+def dismiss_semester_pending_plugin_activations(db: Session, semester_id: str) -> None:
+    db.query(models.SemesterPluginActivation).filter(
+        models.SemesterPluginActivation.semester_id == semester_id,
+        models.SemesterPluginActivation.pending_activation_review == True,  # noqa: E712
+    ).update({"pending_activation_review": False}, synchronize_session=False)
+    db.commit()
+
+
 @_with_canonical_plugin_id
 def upsert_program_plugin_installation(db: Session, program_id: str, plugin_id: str, payload: schemas.ProgramPluginInstallationUpsertRequest) -> dict:
     program = db.query(models.Program).filter(models.Program.id == program_id).first()
@@ -901,6 +976,7 @@ def upsert_program_plugin_installation(db: Session, program_id: str, plugin_id: 
     update_data = payload.model_dump(exclude_unset=True)
     now = _now_utc_iso()
 
+    is_new_installation = installation is None
     if installation is None:
         installation = models.ProgramPluginInstallation(program_id=program_id, plugin_id=plugin_id, is_enabled=True, created_at=now)
 
@@ -914,7 +990,13 @@ def upsert_program_plugin_installation(db: Session, program_id: str, plugin_id: 
         else _normalize_auth_state(plugin_id, installation.auth_state)
     )
     installation.auth_state = candidate_auth_state
-    available, _, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=plugin_id)
+    # Check only external constraints (LMS dependency, auth state) — not the current is_enabled value,
+    # which would make it impossible to re-enable a disabled plugin.
+    available, availability_reason = plugin_registry.resolve_plugin_availability(
+        plugin_id,
+        program_has_lms_integration=bool(program.lms_integration_id),
+        auth_state=candidate_auth_state,
+    )
     if requested_enabled and not available:
         raise PluginRegistryError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
 
@@ -933,6 +1015,10 @@ def upsert_program_plugin_installation(db: Session, program_id: str, plugin_id: 
     db.add(installation)
     db.commit()
     db.refresh(installation)
+
+    if is_new_installation:
+        _propagate_new_installation_to_semesters(db, program, installation)
+
     return _serialize_program_plugin_installation(program, installation, plugin_id=plugin_id)
 
 
@@ -1197,6 +1283,8 @@ def upsert_semester_plugin_activation(db: Session, semester_id: str, plugin_id: 
         activation.is_enabled = bool(update_data["is_enabled"])
     elif activation.is_enabled is None:
         activation.is_enabled = True
+    # Any explicit upsert clears the pending review flag.
+    activation.pending_activation_review = False
     activation.updated_at = now
     semester.draft_updated_at = now if semester.lifecycle_state == "draft" else semester.draft_updated_at
     _refresh_semester_review_ready(db, semester)

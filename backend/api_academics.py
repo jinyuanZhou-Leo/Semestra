@@ -15,7 +15,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 import auth
 from api_common import (
@@ -375,7 +375,23 @@ def read_semester(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    semester = get_owned_semester(db, current_user, semester_id)
+    semester = (
+        db.query(models.Semester)
+        .join(models.Program, models.Semester.program_id == models.Program.id)
+        .options(
+            selectinload(models.Semester.courses),
+            selectinload(models.Semester.widgets),
+            selectinload(models.Semester.tabs),
+            selectinload(models.Semester.program).selectinload(models.Program.plugin_installations),
+            selectinload(models.Semester.plugin_activations).selectinload(
+                models.SemesterPluginActivation.program_plugin_installation
+            ),
+        )
+        .filter(models.Semester.id == semester_id, models.Program.owner_id == current_user.id)
+        .first()
+    )
+    if semester is None:
+        raise HTTPException(status_code=404, detail="Semester not found")
     return _serialize_semester_detail_payload(db, semester)
 
 
@@ -488,6 +504,16 @@ def bulk_update_semester_plugin_activations(
         return crud.bulk_update_semester_plugin_activations(db, semester_id, payload)
     except crud.PluginRegistryError as exc:
         _raise_plugin_registry_http_error(exc)
+
+
+@router.post("/semesters/{semester_id}/plugin-activations:dismiss-pending", status_code=204)
+def dismiss_semester_pending_plugin_activations(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    crud.dismiss_semester_pending_plugin_activations(db, semester_id)
 
 
 @router.delete("/semesters/{semester_id}/plugin-activations/{plugin_id}")
@@ -772,7 +798,23 @@ def read_course(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    db_course = get_owned_course(db, current_user, course_id)
+    db_course = (
+        db.query(models.Course)
+        .join(models.Program, models.Course.program_id == models.Program.id)
+        .options(
+            selectinload(models.Course.widgets),
+            selectinload(models.Course.tabs),
+            selectinload(models.Course.lms_link),
+            selectinload(models.Course.program).selectinload(models.Program.plugin_installations),
+            selectinload(models.Course.plugin_activations).selectinload(
+                models.ProgramCoursePluginActivation.program_plugin_installation
+            ),
+        )
+        .filter(models.Course.id == course_id, models.Program.owner_id == current_user.id)
+        .first()
+    )
+    if db_course is None:
+        raise HTTPException(status_code=404, detail="Course not found")
     return _serialize_course_detail_payload(db, db_course)
 
 

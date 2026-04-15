@@ -224,6 +224,11 @@ def update_program(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
+    if program.plugin_auto_enable_semesters is not None and program.plugin_auto_enable_semesters not in {"yes", "no", "ask"}:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail("INVALID_PLUGIN_AUTO_ENABLE", "plugin_auto_enable_semesters must be 'yes', 'no', or 'ask'."),
+        )
     try:
         db_program = crud.update_program(db, program_id=program_id, program_update=program, user_id=current_user.id)
     except ValueError:

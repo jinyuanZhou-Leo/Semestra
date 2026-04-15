@@ -42,6 +42,7 @@ export interface Program {
     gpa_scaling_table?: string;
     subject_color_map?: string;
     hide_gpa?: boolean;
+    plugin_auto_enable_semesters?: 'yes' | 'no' | 'ask';
     lms_integration_id?: string | null;
     has_lms_dependencies?: boolean;
     lms_integration?: LmsIntegrationSummary | null;
@@ -285,6 +286,7 @@ export interface SemesterPluginActivation {
     locked?: boolean;
     version: string;
     is_enabled: boolean;
+    pending_activation_review?: boolean;
     capabilities: ProgramPluginInstallation['capabilities'];
     setup_sections: ProgramPluginSetupSection[];
     setup_values: Record<string, unknown>;
@@ -1156,6 +1158,9 @@ const api = {
     },
     deleteSemesterPluginActivation: async (semesterId: string, pluginId: string) => {
         await axios.delete(`/api/semesters/${semesterId}/plugin-activations/${pluginId}`);
+    },
+    dismissSemesterPendingPluginActivations: async (semesterId: string) => {
+        await axios.post(`/api/semesters/${semesterId}/plugin-activations:dismiss-pending`);
     },
     getSemesterTodo: async (semesterId: string) => {
         return dedupeGet(`GET:/api/semesters/${semesterId}/todo`, async () => {

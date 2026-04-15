@@ -170,6 +170,7 @@ const ProgramSettingsPageContent: React.FC = () => {
                                 gpa_scaling_table: program.gpa_scaling_table,
                                 subject_color_map: program.subject_color_map,
                                 hide_gpa: program.hide_gpa,
+                                plugin_auto_enable_semesters: program.plugin_auto_enable_semesters,
                                 lms_integration_id: program.lms_integration_id ?? null,
                                 has_lms_dependencies: program.has_lms_dependencies ?? false,
                             }}

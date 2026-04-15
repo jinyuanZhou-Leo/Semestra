@@ -1203,6 +1203,7 @@ class ProgramBase(BaseModel):
     subject_color_map: str = "{}"
     grad_requirement_credits: float = 0.0
     hide_gpa: bool = False
+    plugin_auto_enable_semesters: str = "ask"
     program_timezone: str = "UTC"
     lms_integration_id: Optional[str] = None
 
@@ -1217,6 +1218,7 @@ class ProgramUpdate(BaseModel):
     subject_color_map: Optional[str] = None
     grad_requirement_credits: Optional[float] = None
     hide_gpa: Optional[bool] = None
+    plugin_auto_enable_semesters: Optional[str] = None
     program_timezone: Optional[str] = None
     lms_integration_id: Optional[str] = None
 
@@ -1332,6 +1334,7 @@ class SemesterPluginActivation(BaseModel):
     locked: bool = False
     version: str
     is_enabled: bool = True
+    pending_activation_review: bool = False
     auth_state: str
     capabilities: dict[str, Any] = {}
     setup_sections: List[ProgramPluginSetupSection] = []
