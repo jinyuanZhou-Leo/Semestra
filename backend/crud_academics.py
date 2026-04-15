@@ -39,7 +39,7 @@ def get_current_semester_draft(db: Session, program_id: str) -> models.Semester 
     )
 
 
-def _serialize_semester_draft(semester: models.Semester) -> dict:
+def serialize_semester_draft(semester: models.Semester) -> dict:
     db = Session.object_session(semester)
     review_state = _refresh_semester_review_ready(db, semester) if db is not None else {
         "review_ready": bool(semester.review_ready),
@@ -124,7 +124,7 @@ def create_semester_draft(db: Session, program_id: str, payload: schemas.Semeste
         db.rollback()
         raise
     db.refresh(db_semester)
-    return _serialize_semester_draft(db_semester)
+    return serialize_semester_draft(db_semester)
 
 
 def update_semester_draft(db: Session, semester_id: str, payload: schemas.SemesterDraftUpdateRequest) -> dict:
@@ -151,7 +151,7 @@ def update_semester_draft(db: Session, semester_id: str, payload: schemas.Semest
     db.add(semester)
     db.commit()
     db.refresh(semester)
-    return _serialize_semester_draft(semester)
+    return serialize_semester_draft(semester)
 
 
 def finalize_semester_draft(db: Session, semester_id: str) -> dict:
@@ -172,7 +172,7 @@ def finalize_semester_draft(db: Session, semester_id: str) -> dict:
     db.add(semester)
     db.commit()
     db.refresh(semester)
-    return _serialize_semester_draft(semester)
+    return serialize_semester_draft(semester)
 
 
 def discard_semester_draft(db: Session, semester_id: str) -> models.Semester | None:

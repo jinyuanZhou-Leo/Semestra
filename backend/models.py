@@ -117,7 +117,7 @@ class Program(Base):
 
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     name = Column(String, index=True)
-    owner_id = Column(String, ForeignKey("users.id"))
+    owner_id = Column(String, ForeignKey("users.id"), index=True)
     lms_integration_id = Column(String, ForeignKey("lms_integrations.id", ondelete="SET NULL"), nullable=True, index=True)
     program_timezone = Column(String, nullable=False, default="UTC")
     
@@ -157,7 +157,7 @@ class Semester(Base):
     
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     name = Column(String, index=True)
-    program_id = Column(String, ForeignKey("programs.id"))
+    program_id = Column(String, ForeignKey("programs.id"), index=True)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     reading_week_start = Column(Date, nullable=True)
@@ -267,8 +267,8 @@ class Course(Base):
     alias = Column(String, nullable=True)  # Optional alias to help identify the course
     category = Column(String, nullable=True) # Course category (e.g. "MIE", "ECE")
     color = Column(String, nullable=True)
-    program_id = Column(String, ForeignKey("programs.id"), nullable=True) # Should be NOT NULL eventually
-    semester_id = Column(String, ForeignKey("semesters.id"), nullable=True)
+    program_id = Column(String, ForeignKey("programs.id"), nullable=True, index=True) # Should be NOT NULL eventually
+    semester_id = Column(String, ForeignKey("semesters.id"), nullable=True, index=True)
     
     credits = Column(Float, default=0.0)
     grade_percentage = Column(Float, default=0.0)
@@ -601,9 +601,9 @@ class Widget(Base):
     is_removable = Column(Boolean, default=True)
     
     # Parent Context (Polymorphic-ish, or just optional FKs)
-    semester_id = Column(String, ForeignKey("semesters.id"), nullable=True)
-    course_id = Column(String, ForeignKey("courses.id"), nullable=True)
-    
+    semester_id = Column(String, ForeignKey("semesters.id"), nullable=True, index=True)
+    course_id = Column(String, ForeignKey("courses.id"), nullable=True, index=True)
+
     # Relationships
     semester_context = relationship("Semester", back_populates="widgets")
     course_context = relationship("Course", back_populates="widgets")
@@ -624,8 +624,8 @@ class Tab(Base):
     is_removable = Column(Boolean, default=True)
     is_draggable = Column(Boolean, default=True)
 
-    semester_id = Column(String, ForeignKey("semesters.id"), nullable=True)
-    course_id = Column(String, ForeignKey("courses.id"), nullable=True)
+    semester_id = Column(String, ForeignKey("semesters.id"), nullable=True, index=True)
+    course_id = Column(String, ForeignKey("courses.id"), nullable=True, index=True)
 
     semester_context = relationship("Semester", back_populates="tabs")
     course_context = relationship("Course", back_populates="tabs")

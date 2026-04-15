@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 import crud
 import models
 import schemas
-from database import SessionLocal
+from database import get_db
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
@@ -377,13 +377,6 @@ def record_google_login_failure(db: Session, *, client_ip: str) -> None:
 
 def clear_google_login_failures(db: Session, *, client_ip: str) -> None:
     clear_rate_limit(db, scope=GOOGLE_LOGIN_RATE_LIMIT_IP_SCOPE, raw_key=client_ip)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 def create_access_token(
     data: dict,

@@ -307,7 +307,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
 
         self.assertEqual(activation["setup_values"]["calendarDefaultView"], "week")
 
-        draft_payload = crud._serialize_semester_draft(
+        draft_payload = crud.serialize_semester_draft(
             self.db.query(models.Semester).filter(models.Semester.id == draft["id"]).first()
         )
         event_core_activation = next(

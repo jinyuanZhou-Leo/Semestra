@@ -40,8 +40,11 @@ def _load_encryption_key() -> bytes:
 
     try:
         decoded = base64.urlsafe_b64decode(_add_base64_padding(raw_key))
-    except Exception:
-        decoded = raw_key.encode("utf-8")
+    except Exception as exc:
+        raise LmsCryptoError(
+            "LMS_ENCRYPTION_KEY_INVALID",
+            f"{LMS_CREDENTIALS_KEY_ENV} is not valid base64.",
+        ) from exc
 
     if len(decoded) != 32:
         raise LmsCryptoError(

@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 import logic
 import models
@@ -23,7 +23,14 @@ from crud_shared import (
 
 
 def get_programs(db: Session, user_id: str, skip: int = 0, limit: int = 100):
-    programs = db.query(models.Program).filter(models.Program.owner_id == user_id).offset(skip).limit(limit).all()
+    programs = (
+        db.query(models.Program)
+        .options(selectinload(models.Program.plugin_installations))
+        .filter(models.Program.owner_id == user_id)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     for program in programs:
         _ensure_default_program_plugin_installations(db, program)
     return programs
@@ -54,7 +61,17 @@ def create_program(db: Session, program: schemas.ProgramCreate, user_id: str):
 
 
 def get_program(db: Session, program_id: str, user_id: str):
-    program = db.query(models.Program).filter(models.Program.id == program_id, models.Program.owner_id == user_id).first()
+    program = (
+        db.query(models.Program)
+        .options(
+            selectinload(models.Program.plugin_installations),
+            selectinload(models.Program.semesters).selectinload(models.Semester.courses),
+            selectinload(models.Program.semesters).selectinload(models.Semester.widgets),
+            selectinload(models.Program.semesters).selectinload(models.Semester.tabs),
+        )
+        .filter(models.Program.id == program_id, models.Program.owner_id == user_id)
+        .first()
+    )
     if program is None:
         return None
     _ensure_default_program_plugin_installations(db, program)

@@ -334,7 +334,7 @@ def read_current_semester_draft(
     draft = crud.get_current_semester_draft(db, program_id)
     if draft is None:
         return None
-    return crud._serialize_semester_draft(draft)
+    return crud.serialize_semester_draft(draft)
 
 
 @app.post("/programs/{program_id}/semester-draft", response_model=schemas.SemesterDraft)
@@ -393,7 +393,7 @@ def review_current_semester_draft(
             status_code=409,
             detail=error_detail("SEMESTER_NOT_DRAFT", "Only draft Semesters can be reviewed."),
         )
-    return crud._serialize_semester_draft(draft)
+    return crud.serialize_semester_draft(draft)
 
 
 @app.get("/plugin-system/plugins/{plugin_id}/setup-definition", response_model=schemas.PluginSystemSetupDefinitionResponse)

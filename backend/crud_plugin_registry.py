@@ -1273,8 +1273,8 @@ def bulk_update_semester_plugin_activations(db: Session, semester_id: str, paylo
     db.add(semester)
     db.commit()
     db.refresh(semester)
-    from crud_academics import _serialize_semester_draft
-    return _serialize_semester_draft(semester)
+    from crud_academics import serialize_semester_draft
+    return serialize_semester_draft(semester)
 
 
 @_with_canonical_plugin_id
