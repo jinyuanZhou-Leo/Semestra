@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { userKeys } from '@/data/keys';
 import { SessionExpiredModal } from '../components/SessionExpiredModal';
@@ -131,14 +131,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         queryClient.clear();
     }, []);
 
-    const clearSession = useCallback(() => {
+    const clearSession = () => {
         clearAuthRedirectTarget();
         clearSessionState();
         setIsSessionExpired(false);
         setIsLoading(false);
-    }, [clearSessionState]);
+    };
 
-    const logout = useCallback(async () => {
+    const logout = async () => {
         try {
             await axios.post('/api/auth/logout');
         } catch (error) {
@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } finally {
             clearSession();
         }
-    }, [clearSession]);
+    };
 
     const fetchUser = useCallback(async () => {
         try {
@@ -167,20 +167,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, [clearSessionState]);
 
-    const login = useCallback(async () => {
+    const login = async () => {
         setIsSessionExpired(false);
         setIsLoading(true);
         await fetchUser();
-    }, [fetchUser]);
+    };
 
-    const setActiveProgram = useCallback(async (programId: string | null) => {
+    const setActiveProgram = async (programId: string | null) => {
         const response = await axios.put<User>('/api/users/me', {
             user_setting: JSON.stringify({ active_program_id: programId }),
         });
         const normalizedUser = normalizeUser(response.data);
         setUser(normalizedUser);
         queryClient.setQueryData(userKeys.me(), normalizedUser);
-    }, []);
+    };
 
     useEffect(() => {
         interceptorIdRef.current = axios.interceptors.response.use(
@@ -216,15 +216,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsSessionExpired(false);
     };
 
-    const value = useMemo(() => ({
+    const value = {
         user,
         login,
         logout,
         clearSession,
         refreshUser: fetchUser,
         setActiveProgram,
-        isLoading
-    }), [user, login, logout, clearSession, fetchUser, setActiveProgram, isLoading]);
+        isLoading,
+    };
 
     return (
         <AuthContext.Provider value={value}>

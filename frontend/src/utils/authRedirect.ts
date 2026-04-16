@@ -16,6 +16,8 @@ type RouteLike = {
 
 const isStorageAvailable = (): boolean => typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
 
+// Rejects anything that isn't a same-origin path (open-redirect guard) and
+// drops login/register targets to avoid redirect loops after re-authentication.
 const normalizeAuthRedirectTarget = (candidate: string | null | undefined): string | null => {
   if (!candidate || typeof candidate !== 'string') {
     return null;
