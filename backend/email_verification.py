@@ -317,7 +317,6 @@ def _build_email_payload(*, to_email: str, code: str, purpose: VerificationPurpo
             "AUTH_EMAIL_FROM is not configured.",
             status_code=500,
         )
-    preview_line = _preview_line_for_purpose(purpose)
     template_id = _template_id_for_purpose(purpose)
     payload: dict[str, object] = {
         "from": AUTH_EMAIL_FROM,
@@ -366,24 +365,19 @@ def _deliver_email_code(*, challenge: models.EmailVerificationChallenge, code: s
     return data.get("id") if isinstance(data, dict) else None
 
 
-def send_email_code(
+def _create_and_deliver_challenge(
     db: Session,
     *,
     request: Request,
     email: str,
     purpose: VerificationPurpose,
 ) -> None:
-    normalized_email = normalize_email(email)
-    _ensure_send_not_cooling_down(db, email=normalized_email, purpose=purpose)
-    _enforce_send_rate_limits(db, request=request, email=normalized_email)
-    _invalidate_active_challenges(db, email=normalized_email, purpose=purpose)
-
     code = _generate_verification_code()
     now = _now_utc()
     challenge = models.EmailVerificationChallenge(
-        email=normalized_email,
+        email=email,
         purpose=purpose,
-        code_hash=_build_code_hash(normalized_email, purpose, code),
+        code_hash=_build_code_hash(email, purpose, code),
         verification_nonce=None,
         attempt_count=0,
         max_attempts=VERIFICATION_CODE_MAX_ATTEMPTS,
@@ -416,7 +410,21 @@ def send_email_code(
     db.add(challenge)
     db.commit()
     db.refresh(challenge)
-    _record_send_success(db, request=request, email=normalized_email)
+    _record_send_success(db, request=request, email=email)
+
+
+def send_email_code(
+    db: Session,
+    *,
+    request: Request,
+    email: str,
+    purpose: VerificationPurpose,
+) -> None:
+    normalized_email = normalize_email(email)
+    _ensure_send_not_cooling_down(db, email=normalized_email, purpose=purpose)
+    _enforce_send_rate_limits(db, request=request, email=normalized_email)
+    _invalidate_active_challenges(db, email=normalized_email, purpose=purpose)
+    _create_and_deliver_challenge(db, request=request, email=normalized_email, purpose=purpose)
 
 
 def send_continue_email_code(
@@ -430,46 +438,7 @@ def send_continue_email_code(
     _ensure_continue_send_not_cooling_down(db, email=normalized_email)
     _enforce_send_rate_limits(db, request=request, email=normalized_email)
     _invalidate_active_continue_challenges(db, email=normalized_email)
-
-    code = _generate_verification_code()
-    now = _now_utc()
-    challenge = models.EmailVerificationChallenge(
-        email=normalized_email,
-        purpose=actual_purpose,
-        code_hash=_build_code_hash(normalized_email, actual_purpose, code),
-        verification_nonce=None,
-        attempt_count=0,
-        max_attempts=VERIFICATION_CODE_MAX_ATTEMPTS,
-        expires_at=(now + timedelta(seconds=VERIFICATION_CODE_TTL_SECONDS)).isoformat(),
-        last_sent_at=None,
-        verified_at=None,
-        used_at=None,
-        invalidated_at=None,
-        resend_email_id=None,
-        request_ip=_get_client_ip(request),
-        user_agent=request.headers.get("user-agent"),
-        created_at=now.isoformat(),
-        updated_at=now.isoformat(),
-    )
-    db.add(challenge)
-    db.commit()
-    db.refresh(challenge)
-
-    try:
-        resend_email_id = _deliver_email_code(challenge=challenge, code=code)
-    except Exception:
-        db.delete(challenge)
-        db.commit()
-        raise
-
-    send_timestamp = _now_utc_iso()
-    challenge.last_sent_at = send_timestamp
-    challenge.resend_email_id = resend_email_id
-    challenge.updated_at = send_timestamp
-    db.add(challenge)
-    db.commit()
-    db.refresh(challenge)
-    _record_send_success(db, request=request, email=normalized_email)
+    _create_and_deliver_challenge(db, request=request, email=normalized_email, purpose=actual_purpose)
 
 
 def build_send_code_response_message(*, purpose: str) -> str:

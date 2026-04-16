@@ -45,7 +45,10 @@ const loadGoogleIdentityScript = () => {
         const existing = document.querySelector<HTMLScriptElement>('script[data-google-identity="true"]');
         if (existing) {
             existing.addEventListener('load', () => resolve(), { once: true });
-            existing.addEventListener('error', () => reject(new Error('Failed to load Google Identity Services script.')), { once: true });
+            existing.addEventListener('error', () => {
+                gsiScriptPromise = null;
+                reject(new Error('Failed to load Google Identity Services script.'));
+            }, { once: true });
             return;
         }
 
@@ -55,7 +58,10 @@ const loadGoogleIdentityScript = () => {
         script.defer = true;
         script.dataset.googleIdentity = 'true';
         script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Failed to load Google Identity Services script.'));
+        script.onerror = () => {
+            gsiScriptPromise = null;
+            reject(new Error('Failed to load Google Identity Services script.'));
+        };
         document.head.appendChild(script);
     });
 
@@ -85,7 +91,9 @@ export const ensureGoogleIdentityInitialized = async (
     clientId: string,
     callback: (response: { credential?: string }) => void | Promise<void>
 ) => {
-    await loadGoogleIdentityScriptWhenIdle();
+    if (!getGoogleIdentityApi()) {
+        await loadGoogleIdentityScriptWhenIdle();
+    }
 
     const googleIdentityApi = getGoogleIdentityApi();
     if (!googleIdentityApi) {
