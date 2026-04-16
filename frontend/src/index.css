@@ -47,6 +47,123 @@ body>div>div[role="dialog"][data-state] {
   opacity: 0.5 !important;
 }
 
+/* driver.js onboarding tour theming */
+.semestra-onboarding {
+  background-color: var(--color-card) !important;
+  color: var(--color-card-foreground) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18) !important;
+  min-width: 340px !important;
+  max-width: 420px !important;
+  padding: 20px !important;
+}
+
+.semestra-onboarding * {
+  font-family: inherit !important;
+}
+
+.semestra-onboarding .driver-popover-title {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  color: var(--color-foreground) !important;
+  margin-bottom: 6px !important;
+}
+
+.semestra-onboarding .driver-popover-description {
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  color: var(--color-muted-foreground) !important;
+  margin: 0 !important;
+}
+
+.semestra-onboarding .driver-popover-description strong {
+  color: var(--color-foreground) !important;
+  font-weight: 600 !important;
+}
+
+.semestra-onboarding .driver-popover-footer {
+  margin-top: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+}
+
+.semestra-onboarding .driver-popover-progress-text {
+  font-size: 11px !important;
+  color: var(--color-muted-foreground) !important;
+  flex-shrink: 0 !important;
+}
+
+.semestra-onboarding .driver-popover-navigation-btns {
+  display: flex !important;
+  gap: 6px !important;
+  flex-grow: 0 !important;
+  justify-content: flex-end !important;
+}
+
+.semestra-onboarding .driver-popover-footer button {
+  all: unset !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 5px 14px !important;
+  border-radius: var(--radius) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: opacity 0.15s !important;
+  line-height: 1.5 !important;
+  white-space: nowrap !important;
+}
+
+.semestra-onboarding .driver-popover-navigation-btns button:first-child {
+  background-color: transparent !important;
+  color: var(--color-foreground) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.semestra-onboarding .driver-popover-navigation-btns button:first-child:hover {
+  background-color: var(--color-accent) !important;
+}
+
+.semestra-onboarding .driver-popover-navigation-btns button:last-child {
+  background-color: var(--color-primary) !important;
+  color: var(--color-primary-foreground) !important;
+}
+
+.semestra-onboarding .driver-popover-navigation-btns button:last-child:hover {
+  opacity: 0.9 !important;
+}
+
+.semestra-onboarding .driver-popover-footer .driver-popover-btn-disabled {
+  opacity: 0.35 !important;
+  pointer-events: none !important;
+}
+
+.semestra-onboarding .driver-popover-arrow {
+  display: none !important;
+}
+
+/* Skip tour button injected via onPopoverRender */
+.semestra-onboarding-skip {
+  all: unset !important;
+  font-size: 12px !important;
+  color: var(--color-muted-foreground) !important;
+  cursor: pointer !important;
+  text-decoration: underline !important;
+  text-underline-offset: 2px !important;
+  padding: 4px 0 !important;
+  transition: color 0.15s !important;
+  flex-shrink: 0 !important;
+}
+
+.semestra-onboarding-skip:hover {
+  color: var(--color-foreground) !important;
+}
+
 /* Enhanced Widget Resize Handle
    ─────────────────────────────────────────────────────────────────────
    RGL's Responsive component caches layout state per breakpoint,

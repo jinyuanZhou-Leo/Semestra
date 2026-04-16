@@ -84,7 +84,7 @@ const THEME_OPTIONS: Array<{ value: "light" | "dark" | "system"; label: string }
 ];
 
 export const SettingsPage: React.FC = () => {
-    const { user, logout, clearSession, refreshUser } = useAuth();
+    const { user, logout, clearSession, refreshUser, completeOnboarding } = useAuth();
     const navigate = useNavigate();
     const { alert: showAlert, confirm } = useDialog();
     const { theme: themeMode, setTheme } = useTheme();
@@ -552,6 +552,24 @@ export const SettingsPage: React.FC = () => {
 
                             {/* Session Management */}
                             <div className="space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="space-y-0.5">
+                                        <p className="text-sm font-medium">Onboarding Tour</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            Replay the introduction tour that explains Semestra's core concepts.
+                                        </p>
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => void completeOnboarding(null)}
+                                        className="shrink-0"
+                                    >
+                                        Restart tour
+                                    </Button>
+                                </div>
+
+                                <Separator />
+
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="space-y-0.5">
                                         <p className="text-sm font-medium">Sign Out</p>

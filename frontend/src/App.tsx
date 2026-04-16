@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { Suspense, lazy, useEffect, type ReactElement } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useState, type ReactElement } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { SpeedInsights } from '@vercel/speed-insights/react';
@@ -20,6 +20,7 @@ import { AuthRouteLayout } from './components/AuthRouteLayout';
 import { Toaster } from "sonner"
 import { queryClient } from './services/queryClient';
 import { preloadRemainingPluginsWhenIdle } from './plugin-system';
+import { OnboardingTour } from './components/OnboardingTour';
 import { getProgramDetailQueryOptions, getProgramSemesterDraftQueryOptions } from './data/resources';
 
 const ProgramsPage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.ProgramsPage })));
@@ -100,6 +101,22 @@ function PluginIdlePreloadController(): null {
   return null;
 }
 
+function OnboardingController(): ReactElement | null {
+  const { user, isLoading } = useAuth();
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && user && !user.active_program_id && !user.onboarding_completed_at) {
+      setShow(true);
+    }
+  }, [isLoading, user, user?.active_program_id, user?.onboarding_completed_at]);
+
+  const handleComplete = useCallback(() => setShow(false), []);
+
+  if (!show) return null;
+  return <OnboardingTour onComplete={handleComplete} />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -108,6 +125,7 @@ function App() {
           <AuthProvider>
             <DialogProvider>
               <PluginIdlePreloadController />
+              <OnboardingController />
               <Routes>
                 <Route element={<AuthRouteLayout />}>
                   <Route path="/login" element={
