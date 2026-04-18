@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { Suspense, lazy, useCallback, useEffect, useState, type ReactElement } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { useAuth } from './contexts/AuthContext';
@@ -20,7 +20,7 @@ import { AuthRouteLayout } from './components/AuthRouteLayout';
 import { Toaster } from "sonner"
 import { queryClient } from './services/queryClient';
 import { preloadRemainingPluginsWhenIdle } from './plugin-system';
-import { OnboardingTour } from './components/OnboardingTour';
+import { OnboardingTour, TOUR_STEP_KEY, type TourStep } from './components/OnboardingTour';
 import { getProgramDetailQueryOptions, getProgramSemesterDraftQueryOptions } from './data/resources';
 
 const ProgramsPage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.ProgramsPage })));
@@ -101,20 +101,64 @@ function PluginIdlePreloadController(): null {
   return null;
 }
 
+const PROGRAM_DASHBOARD_RE = /^\/programs\/[^/]+$/;
+
+function resolveStepForPath(stored: TourStep, path: string): TourStep | null {
+  // Auto-advance: after program creation user lands on /programs/:id
+  if (stored === 'highlight-new-program' && PROGRAM_DASHBOARD_RE.test(path)) {
+    return 'program-dashboard-tour';
+  }
+
+  const validPaths: Record<TourStep, (p: string) => boolean> = {
+    'highlight-new-program':   (p) => p === '/programs',
+    'program-dashboard-tour':  (p) => PROGRAM_DASHBOARD_RE.test(p),
+  };
+  return validPaths[stored]?.(path) ? stored : null;
+}
+
 function OnboardingController(): ReactElement | null {
   const { user, isLoading } = useAuth();
-  const [show, setShow] = useState(false);
+  const location = useLocation();
+  const [activeTourStep, setActiveTourStep] = useState<TourStep | null>(null);
 
   useEffect(() => {
-    if (!isLoading && user && !user.active_program_id && !user.onboarding_completed_at) {
-      setShow(true);
+    if (isLoading || !user || user.onboarding_completed_at) {
+      setActiveTourStep(null);
+      return;
     }
-  }, [isLoading, user, user?.active_program_id, user?.onboarding_completed_at]);
 
-  const handleComplete = useCallback(() => setShow(false), []);
+    const path = location.pathname;
+    const stored = sessionStorage.getItem(TOUR_STEP_KEY) as TourStep | null;
 
-  if (!show) return null;
-  return <OnboardingTour onComplete={handleComplete} />;
+    if (!stored) {
+      if (path === '/programs' && !user.active_program_id) {
+        sessionStorage.setItem(TOUR_STEP_KEY, 'highlight-new-program');
+        setActiveTourStep('highlight-new-program');
+      } else {
+        setActiveTourStep(null);
+      }
+      return;
+    }
+
+    const resolved = resolveStepForPath(stored, path);
+    if (resolved && resolved !== stored) {
+      sessionStorage.setItem(TOUR_STEP_KEY, resolved);
+    }
+    setActiveTourStep(resolved);
+  }, [isLoading, user, location.pathname]);
+
+  const handleComplete = useCallback(() => {
+    sessionStorage.removeItem(TOUR_STEP_KEY);
+    setActiveTourStep(null);
+  }, []);
+
+  if (!activeTourStep) return null;
+  return (
+    <OnboardingTour
+      step={activeTourStep}
+      onComplete={handleComplete}
+    />
+  );
 }
 
 function App() {

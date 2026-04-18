@@ -14,6 +14,7 @@ import { GPAScalingTable } from "../components/GPAScalingTable";
 import axios from "axios";
 
 import { useAuth } from "../contexts/AuthContext";
+import { TOUR_STEP_KEY } from "../components/OnboardingTour";
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../components/BackButton";
 import { Container } from "../components/Container";
@@ -556,12 +557,15 @@ export const SettingsPage: React.FC = () => {
                                     <div className="space-y-0.5">
                                         <p className="text-sm font-medium">Onboarding Tour</p>
                                         <p className="text-sm text-muted-foreground">
-                                            Replay the introduction tour that explains Semestra's core concepts.
+                                            Restart the guided setup that walks you through creating your first Program and Semester.
                                         </p>
                                     </div>
                                     <Button
                                         variant="outline"
-                                        onClick={() => void completeOnboarding(null)}
+                                        onClick={() => {
+                                            sessionStorage.removeItem(TOUR_STEP_KEY);
+                                            void completeOnboarding(null).then(() => navigate('/programs'));
+                                        }}
                                         className="shrink-0"
                                     >
                                         Restart tour

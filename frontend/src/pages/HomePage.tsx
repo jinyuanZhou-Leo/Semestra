@@ -58,6 +58,7 @@ type CreateProgramDialogButtonProps = {
     className?: string;
     size?: React.ComponentProps<typeof Button>['size'];
     variant?: React.ComponentProps<typeof Button>['variant'];
+    id?: string;
     children: React.ReactNode;
 };
 
@@ -67,6 +68,7 @@ const CreateProgramDialogButton: React.FC<CreateProgramDialogButtonProps> = ({
     className,
     size,
     variant,
+    id,
     children,
 }) => {
     const [open, setOpen] = useState(false);
@@ -105,6 +107,7 @@ const CreateProgramDialogButton: React.FC<CreateProgramDialogButtonProps> = ({
     return (
         <>
             <Button
+                id={id}
                 type="button"
                 size={size}
                 variant={variant}
@@ -378,6 +381,7 @@ export const ProgramsPage: React.FC = () => {
                             </p>
                         </div>
                         <CreateProgramDialogButton
+                            id="onboarding-new-program-btn"
                             showAlert={showAlert}
                             onCreated={handleCreatedProgram}
                         >
