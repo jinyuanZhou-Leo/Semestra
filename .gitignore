@@ -84,3 +84,4 @@ docs/landing.md
 
 frontend/src/plugins/crash-test
 backend/generated/plugin-manifests/crash-test.plugin.json
+skills/

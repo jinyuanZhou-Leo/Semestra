@@ -47,6 +47,219 @@ body>div>div[role="dialog"][data-state] {
   opacity: 0.5 !important;
 }
 
+/* driver.js onboarding tour theming */
+.semestra-onboarding {
+  background-color: var(--color-card) !important;
+  color: var(--color-card-foreground) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18) !important;
+  min-width: 340px !important;
+  max-width: 420px !important;
+  padding: 20px !important;
+}
+
+.semestra-onboarding * {
+  font-family: inherit !important;
+}
+
+.semestra-onboarding .driver-popover-title {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  color: var(--color-foreground) !important;
+  margin-bottom: 6px !important;
+  /* Reserve space for the skip corner button */
+  padding-right: 48px !important;
+}
+
+.semestra-onboarding .driver-popover-description {
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  color: var(--color-muted-foreground) !important;
+  margin: 0 !important;
+}
+
+.semestra-onboarding .driver-popover-description strong {
+  color: var(--color-foreground) !important;
+  font-weight: 600 !important;
+}
+
+.semestra-onboarding .driver-popover-footer {
+  margin-top: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+}
+
+.semestra-onboarding .driver-popover-progress-text {
+  font-size: 11px !important;
+  color: var(--color-muted-foreground) !important;
+  flex-shrink: 0 !important;
+}
+
+.semestra-onboarding .driver-popover-navigation-btns {
+  display: flex !important;
+  gap: 6px !important;
+  flex-grow: 0 !important;
+  justify-content: flex-end !important;
+}
+
+.semestra-onboarding .driver-popover-footer button {
+  all: unset !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 5px 14px !important;
+  border-radius: var(--radius) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: opacity 0.15s !important;
+  line-height: 1.5 !important;
+  white-space: nowrap !important;
+}
+
+.semestra-onboarding .driver-popover-navigation-btns button:first-child {
+  background-color: transparent !important;
+  color: var(--color-foreground) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.semestra-onboarding .driver-popover-navigation-btns button:first-child:hover {
+  background-color: var(--color-accent) !important;
+}
+
+.semestra-onboarding .driver-popover-navigation-btns button:last-child {
+  background-color: var(--color-primary) !important;
+  color: var(--color-primary-foreground) !important;
+}
+
+.semestra-onboarding .driver-popover-navigation-btns button:last-child:hover {
+  opacity: 0.9 !important;
+}
+
+.semestra-onboarding .driver-popover-footer .driver-popover-btn-disabled {
+  opacity: 0.35 !important;
+  pointer-events: none !important;
+}
+
+.semestra-onboarding .driver-popover-arrow {
+  display: none !important;
+}
+
+/* "Skip" — absolute top-right corner of the popover, lowest visual priority */
+.semestra-onboarding-skip-corner {
+  all: unset !important;
+  position: absolute !important;
+  top: 20px !important;
+  right: 20px !important;
+  font-size: 11px !important;
+  color: var(--color-muted-foreground) !important;
+  cursor: pointer !important;
+  opacity: 0.5 !important;
+  transition: opacity 0.15s !important;
+  letter-spacing: 0.01em !important;
+  line-height: 1 !important;
+}
+
+.semestra-onboarding-skip-corner:hover {
+  opacity: 1 !important;
+}
+
+/* Mobile bottom-sheet mode for driver.js popovers */
+@media (max-width: 767px) {
+  .semestra-onboarding {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    transform: none !important;
+    border-radius: 16px 16px 0 0 !important;
+    min-width: unset !important;
+    max-width: unset !important;
+    width: 100% !important;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .semestra-onboarding .driver-popover-arrow {
+    display: none !important;
+  }
+}
+
+/* Onboarding completion celebration */
+@keyframes celebration-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes celebration-overlay-out {
+  from { opacity: 1; }
+  to   { opacity: 0; pointer-events: none; }
+}
+
+@keyframes celebration-card-in {
+  0%   { transform: scale(0.55) translateY(20px); opacity: 0; }
+  65%  { transform: scale(1.06) translateY(-4px); opacity: 1; }
+  100% { transform: scale(1)    translateY(0);    opacity: 1; }
+}
+
+@keyframes celebration-emoji-pop {
+  0%   { transform: scale(0); }
+  60%  { transform: scale(1.25) rotate(-8deg); }
+  80%  { transform: scale(0.9)  rotate(4deg); }
+  100% { transform: scale(1)    rotate(0deg); }
+}
+
+.semestra-celebration-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation:
+    celebration-overlay-in  0.25s ease forwards,
+    celebration-overlay-out 0.45s ease 2.15s forwards;
+}
+
+.semestra-celebration-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl, 16px);
+  padding: 40px 52px;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
+  animation: celebration-card-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
+}
+
+.semestra-celebration-emoji {
+  font-size: 52px;
+  line-height: 1;
+  margin-bottom: 16px;
+  display: block;
+  animation: celebration-emoji-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.35s both;
+}
+
+.semestra-celebration-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-foreground);
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+.semestra-celebration-subtitle {
+  font-size: 13px;
+  color: var(--color-muted-foreground);
+  line-height: 1.5;
+}
+
 /* Enhanced Widget Resize Handle
    ─────────────────────────────────────────────────────────────────────
    RGL's Responsive component caches layout state per breakpoint,

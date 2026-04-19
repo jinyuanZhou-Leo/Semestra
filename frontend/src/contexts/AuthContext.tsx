@@ -34,11 +34,12 @@ interface User {
     default_course_credit?: number;
     background_plugin_preload?: boolean;
     active_program_id?: string | null;
+    onboarding_completed_at?: string | null;
     google_sub?: string | null;
     email_verified_at?: string | null;
 }
 
-type UserSettings = Pick<User, 'gpa_scaling_table' | 'default_course_credit' | 'background_plugin_preload' | 'active_program_id'>;
+type UserSettings = Pick<User, 'gpa_scaling_table' | 'default_course_credit' | 'background_plugin_preload' | 'active_program_id' | 'onboarding_completed_at'>;
 
 const resolveUserSettings = (rawSetting?: string | null): UserSettings => {
     if (!rawSetting) {
@@ -47,6 +48,7 @@ const resolveUserSettings = (rawSetting?: string | null): UserSettings => {
             default_course_credit: DEFAULT_COURSE_CREDIT,
             background_plugin_preload: true,
             active_program_id: null,
+            onboarding_completed_at: null,
         };
     }
 
@@ -64,6 +66,10 @@ const resolveUserSettings = (rawSetting?: string | null): UserSettings => {
             typeof parsed.active_program_id === 'string' && parsed.active_program_id.trim()
                 ? parsed.active_program_id.trim()
                 : null;
+        const onboardingCompletedAt =
+            typeof parsed.onboarding_completed_at === 'string' && parsed.onboarding_completed_at
+                ? parsed.onboarding_completed_at
+                : null;
 
         return {
             gpa_scaling_table: gpaScalingTable,
@@ -73,6 +79,7 @@ const resolveUserSettings = (rawSetting?: string | null): UserSettings => {
                     ? parsed.background_plugin_preload
                     : true,
             active_program_id: activeProgramId,
+            onboarding_completed_at: onboardingCompletedAt,
         };
     } catch {
         return {
@@ -80,6 +87,7 @@ const resolveUserSettings = (rawSetting?: string | null): UserSettings => {
             default_course_credit: DEFAULT_COURSE_CREDIT,
             background_plugin_preload: true,
             active_program_id: null,
+            onboarding_completed_at: null,
         };
     }
 };
@@ -109,6 +117,7 @@ interface AuthContextType {
     clearSession: () => void;
     refreshUser: () => Promise<void>;
     setActiveProgram: (programId: string | null) => Promise<void>;
+    completeOnboarding: (timestamp: string | null) => Promise<void>;
     isLoading: boolean;
 }
 
@@ -182,6 +191,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         queryClient.setQueryData(userKeys.me(), normalizedUser);
     };
 
+    const completeOnboarding = useCallback(async (timestamp: string | null) => {
+        const response = await axios.put<User>('/api/users/me', {
+            user_setting: JSON.stringify({ onboarding_completed_at: timestamp }),
+        });
+        const normalizedUser = normalizeUser(response.data);
+        setUser(normalizedUser);
+        queryClient.setQueryData(userKeys.me(), normalizedUser);
+    }, []);
+
     useEffect(() => {
         interceptorIdRef.current = axios.interceptors.response.use(
             (response) => response,
@@ -223,6 +241,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearSession,
         refreshUser: fetchUser,
         setActiveProgram,
+        completeOnboarding,
         isLoading,
     };
 

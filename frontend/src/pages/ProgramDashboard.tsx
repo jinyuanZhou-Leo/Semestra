@@ -880,6 +880,7 @@ const ProgramDashboardContent: React.FC = () => {
                             </Button>
                             {program ? (
                                 <CreateSemesterWizardButton
+                                    id="onboarding-new-semester-btn"
                                     programId={program.id}
                                     onChanged={refreshDashboardData}
                                 >
