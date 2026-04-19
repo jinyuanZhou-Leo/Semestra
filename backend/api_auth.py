@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import timedelta
 import os
 from pathlib import Path
-from typing import Optional
+from typing import NoReturn, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -56,7 +56,7 @@ def verify_google_id_token(id_token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid Google token") from exc
 
 
-def _raise_email_verification_http_error(exc: Exception) -> None:
+def _raise_email_verification_http_error(exc: Exception) -> NoReturn:
     if isinstance(exc, email_verification.EmailVerificationError):
         raise HTTPException(
             status_code=exc.status_code,
@@ -65,7 +65,7 @@ def _raise_email_verification_http_error(exc: Exception) -> None:
     raise exc
 
 
-def _raise_user_identity_http_error(exc: Exception) -> None:
+def _raise_user_identity_http_error(exc: Exception) -> NoReturn:
     if isinstance(exc, crud.UserIdentityConflictError):
         if exc.field == "email":
             raise HTTPException(
@@ -98,7 +98,6 @@ def _link_google_user_identity(
         )
     except crud.UserIdentityConflictError as exc:
         _raise_user_identity_http_error(exc)
-    return user
 
 
 def _build_send_code_response(purpose: schemas.AuthEmailCodePurpose) -> schemas.EmailCodeSendResponse:

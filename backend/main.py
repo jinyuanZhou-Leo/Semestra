@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import os
 from pathlib import Path
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from dotenv import load_dotenv
 
@@ -88,6 +89,9 @@ def _configure_middlewares(app_instance: FastAPI) -> None:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    trusted_proxy_ips = os.getenv("TRUSTED_PROXY_IPS", "").strip()
+    if trusted_proxy_ips:
+        app_instance.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted_proxy_ips)
 
 
 app = FastAPI(**_build_fastapi_kwargs())

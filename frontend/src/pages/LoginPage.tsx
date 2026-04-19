@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useState, type FormEvent, type ReactElement } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -80,6 +80,39 @@ const authStepVariants: Variants = {
   }),
 };
 
+const authPanelTransition = {
+  duration: 0.2,
+  ease: [0.22, 1, 0.36, 1] as const,
+};
+
+const authStepTransition = {
+  duration: 0.18,
+  ease: 'easeInOut' as const,
+};
+
+const VIEW_HEADINGS: Record<AuthView, { title: string; subtitle: string }> = {
+  entry: {
+    title: 'Continue to Semestra',
+    subtitle: 'Sign in or create your account with a secure sign-in method.',
+  },
+  password: {
+    title: 'Sign in with password',
+    subtitle: 'Enter your email and password to continue.',
+  },
+  email: {
+    title: 'Continue with email',
+    subtitle: 'We will send a verification code to your email address.',
+  },
+  code: {
+    title: 'Enter verification code',
+    subtitle: 'Enter the six-digit code we sent to your email address.',
+  },
+  profile: {
+    title: 'Finish setting up your account',
+    subtitle: 'Choose your name and password to complete your account.',
+  },
+};
+
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 const getApiErrorMessage = (error: unknown, fallback: string) => {
@@ -106,7 +139,7 @@ const getInitialView = (state: LoginLocationState | null): AuthView => {
   return 'entry';
 };
 
-function getResendButtonLabel(isSendingCode: boolean, cooldownRemaining: number): string | React.ReactElement {
+function getResendButtonLabel(isSendingCode: boolean, cooldownRemaining: number): string | ReactElement {
   if (isSendingCode) {
     return <div className="size-3.5 animate-spin rounded-full border-2 border-current/25 border-t-current" />;
   }
@@ -116,7 +149,7 @@ function getResendButtonLabel(isSendingCode: boolean, cooldownRemaining: number)
   return 'Resend';
 }
 
-export function LoginPage(): React.ReactElement {
+export function LoginPage(): ReactElement {
   const location = useLocation();
   const loginLocationState = (location.state as LoginLocationState | null) ?? null;
   const prefilledEmail = typeof loginLocationState?.email === 'string' ? loginLocationState.email : '';
@@ -152,7 +185,7 @@ export function LoginPage(): React.ReactElement {
   const { login } = useAuth();
   const { theme: themeMode } = useTheme();
   const navigate = useNavigate();
-  const googleButtonRef = useRef<HTMLDivElement>(null);
+  const [googleButtonEl, setGoogleButtonEl] = useState<HTMLDivElement | null>(null);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
   const emailId = useId();
   const passwordId = useId();
@@ -166,14 +199,6 @@ export function LoginPage(): React.ReactElement {
     () => consumeAuthRedirectTarget(loginRedirectSource, '/'),
     [loginRedirectSource],
   );
-  const authPanelTransition = {
-    duration: 0.2,
-    ease: [0.22, 1, 0.36, 1] as const,
-  };
-  const authStepTransition = {
-    duration: 0.18,
-    ease: 'easeInOut' as const,
-  };
 
   useEffect(() => {
     document.documentElement.dataset.authPage = 'true';
@@ -192,17 +217,12 @@ export function LoginPage(): React.ReactElement {
     return () => window.clearInterval(timer);
   }, [cooldownRemaining]);
 
-  const googleButtonTheme = React.useMemo(() => {
-    if (typeof window === 'undefined') {
-      return 'outline';
-    }
-    const prefersDark = themeMode === 'dark'
-      || (themeMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    return prefersDark ? 'filled_black' : 'outline';
-  }, [themeMode]);
+  const prefersDark = themeMode === 'dark'
+    || (themeMode === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const googleButtonTheme = prefersDark ? 'filled_black' : 'outline';
 
   useEffect(() => {
-    if (!googleClientId || view !== 'entry') {
+    if (!googleClientId || !googleButtonEl) {
       return;
     }
 
@@ -224,15 +244,14 @@ export function LoginPage(): React.ReactElement {
     };
 
     const initGoogle = async () => {
-      const buttonContainer = googleButtonRef.current;
-      if (cancelled || !buttonContainer) {
+      if (cancelled) {
         return;
       }
 
       try {
-        const buttonWidth = Math.floor(buttonContainer.getBoundingClientRect().width);
+        const buttonWidth = Math.floor(googleButtonEl.getBoundingClientRect().width);
         await renderGoogleIdentityButton(
-          buttonContainer,
+          googleButtonEl,
           googleClientId,
           handleGoogleCredential,
           {
@@ -251,7 +270,7 @@ export function LoginPage(): React.ReactElement {
       }
 
       requestAnimationFrame(() => {
-        if (!cancelled && googleButtonRef.current) {
+        if (!cancelled) {
           setIsGoogleReady(true);
         }
       });
@@ -263,7 +282,7 @@ export function LoginPage(): React.ReactElement {
       cancelled = true;
       setIsGoogleReady(false);
     };
-  }, [googleButtonTheme, googleClientId, login, navigate, resolvePostLoginTarget, view]);
+  }, [googleButtonTheme, googleClientId, googleButtonEl, login, navigate, resolvePostLoginTarget]);
 
   const clearError = (key: keyof typeof fieldErrors) => {
     setFieldErrors((current) => ({ ...current, [key]: null }));
@@ -299,7 +318,7 @@ export function LoginPage(): React.ReactElement {
     navigate(resolvePostLoginTarget(), { replace: true });
   };
 
-  const handlePasswordSubmit = async (event: React.FormEvent) => {
+  const handlePasswordSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
     const nextErrors = {
@@ -428,16 +447,12 @@ export function LoginPage(): React.ReactElement {
         ...current,
         code: message,
       }));
-
-      if (axios.isAxiosError(error) && error.response?.status === 400) {
-        return;
-      }
     } finally {
       setIsCodeLoading(false);
     }
   };
 
-  const handleCompleteRegistration = async (event: React.FormEvent) => {
+  const handleCompleteRegistration = async (event: FormEvent) => {
     event.preventDefault();
     const normalizedNickname = nickname.trim();
     const nextErrors = {
@@ -486,7 +501,7 @@ export function LoginPage(): React.ReactElement {
     }
   };
 
-  const handlePrimarySubmit = (event: React.FormEvent) => {
+  const handlePrimarySubmit = (event: FormEvent) => {
     if (view === 'password') {
       void handlePasswordSubmit(event);
       return;
@@ -509,36 +524,7 @@ export function LoginPage(): React.ReactElement {
     event.preventDefault();
   };
 
-  const headingContent = (() => {
-    switch (view) {
-      case 'password':
-        return {
-          title: 'Sign in with password',
-          subtitle: 'Enter your email and password to continue.',
-        };
-      case 'email':
-        return {
-          title: 'Continue with email',
-          subtitle: 'We will send a verification code to your email address.',
-        };
-      case 'code':
-        return {
-          title: 'Enter verification code',
-          subtitle: 'Enter the six-digit code we sent to your email address.',
-        };
-      case 'profile':
-        return {
-          title: 'Finish setting up your account',
-          subtitle: 'Choose your name and password to complete your account.',
-        };
-      case 'entry':
-      default:
-        return {
-          title: 'Continue to Semestra',
-          subtitle: 'Sign in or create your account with a secure sign-in method.',
-        };
-    }
-  })();
+  const headingContent = VIEW_HEADINGS[view];
 
   const showTopBack = view === 'password' || view === 'email';
   const handleTopBack = () => {
@@ -611,7 +597,7 @@ export function LoginPage(): React.ReactElement {
                   {googleClientId ? (
                     <div className="relative h-11 w-full">
                       <div
-                        ref={googleButtonRef}
+                        ref={setGoogleButtonEl}
                         className={`h-11 w-full transition-opacity duration-200 ${isGoogleReady ? 'opacity-100' : 'opacity-0'}`}
                       />
                       {!isGoogleReady ? (

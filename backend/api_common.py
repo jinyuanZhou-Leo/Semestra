@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
-from typing import Any, Optional
+from typing import Any, NoReturn, Optional
 import math
 from zoneinfo import ZoneInfo
 
@@ -42,7 +42,7 @@ def error_detail(code: str, message: str) -> dict:
     return {"code": code, "message": message}
 
 
-def raise_gradebook_http_error(exc: Exception) -> None:
+def raise_gradebook_http_error(exc: Exception) -> NoReturn:
     if isinstance(exc, gradebook.GradebookNotFoundError):
         raise HTTPException(status_code=404, detail=str(exc))
     if isinstance(exc, gradebook.GradebookConflictError):
@@ -52,7 +52,7 @@ def raise_gradebook_http_error(exc: Exception) -> None:
     raise exc
 
 
-def raise_todo_http_error(exc: Exception) -> None:
+def raise_todo_http_error(exc: Exception) -> NoReturn:
     if isinstance(exc, todo.TodoNotFoundError):
         raise HTTPException(status_code=404, detail=error_detail("TODO_NOT_FOUND", f"{exc.resource} not found."))
     if isinstance(exc, todo.TodoValidationError):
@@ -60,13 +60,13 @@ def raise_todo_http_error(exc: Exception) -> None:
     raise exc
 
 
-def raise_lms_http_error(exc: Exception) -> None:
+def raise_lms_http_error(exc: Exception) -> NoReturn:
     if isinstance(exc, lms_service.LmsServiceError):
         raise HTTPException(status_code=exc.status_code, detail=error_detail(exc.code, exc.message))
     raise exc
 
 
-def raise_plugin_registry_http_error(exc: Exception) -> None:
+def raise_plugin_registry_http_error(exc: Exception) -> NoReturn:
     if isinstance(exc, crud.PluginRegistryError):
         status_code = 422
         if exc.code in {"PROGRAM_NOT_FOUND", "SEMESTER_NOT_FOUND", "PLUGIN_INSTALLATION_NOT_FOUND"}:

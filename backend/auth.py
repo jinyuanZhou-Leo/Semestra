@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import crud
@@ -33,6 +34,7 @@ if not SECRET_KEY:
     SECRET_KEY = secrets.token_urlsafe(32)
 
 ALGORITHM = "HS256"
+AUTH_RATE_LIMIT_KEY_SECRET = os.getenv("AUTH_RATE_LIMIT_KEY_SECRET") or SECRET_KEY
 ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
 AUTH_COOKIE_NAME = os.getenv("AUTH_COOKIE_NAME", "semestra_session")
 AUTH_COOKIE_DOMAIN = os.getenv("AUTH_COOKIE_DOMAIN") or None
@@ -114,7 +116,7 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
 
 
 def _rate_limit_key_hash(raw_value: str) -> str:
-    return hmac.new(SECRET_KEY.encode("utf-8"), raw_value.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.new(AUTH_RATE_LIMIT_KEY_SECRET.encode("utf-8"), raw_value.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def get_allowed_browser_origins() -> list[str]:
@@ -227,7 +229,14 @@ def _ensure_rate_limit_record(db: Session, scope: str, raw_key: str) -> models.A
         updated_at=timestamp,
     )
     db.add(record)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing = _get_rate_limit_record(db, scope, raw_key)
+        if existing is None:
+            raise
+        return existing
     db.refresh(record)
     return record
 
@@ -241,14 +250,13 @@ def _normalize_rate_limit_record(
 ) -> models.AuthRateLimit:
     record_changed = False
     blocked_until = _parse_iso_datetime(record.blocked_until)
+    window_started_at = _parse_iso_datetime(record.window_started_at)
     if blocked_until is not None and blocked_until <= now:
         record.blocked_until = None
         record.attempts = 0
         record.window_started_at = now.isoformat()
         record_changed = True
-
-    window_started_at = _parse_iso_datetime(record.window_started_at)
-    if window_started_at is None or window_started_at + timedelta(seconds=window_seconds) <= now:
+    elif window_started_at is None or window_started_at + timedelta(seconds=window_seconds) <= now:
         record.attempts = 0
         record.window_started_at = now.isoformat()
         record.blocked_until = None
