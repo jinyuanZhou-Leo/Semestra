@@ -725,8 +725,8 @@ const [isConfirmingPending, setIsConfirmingPending] = useState(false);
                     </Container>
 
                     <Dialog open={isPendingReviewOpen} onOpenChange={setIsPendingReviewOpen}>
-                        <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
+                        <DialogContent className="sm:max-w-md overflow-hidden">
+                            <DialogHeader className="pr-8">
                                 <DialogTitle>New plugins available</DialogTitle>
                                 <DialogDescription>
                                     The following plugins were recently added to your Program. Choose which ones to enable for this Semester.
