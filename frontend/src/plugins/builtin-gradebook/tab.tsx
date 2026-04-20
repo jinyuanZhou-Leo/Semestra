@@ -594,7 +594,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 key: 'due_date',
                 label: 'Due',
                 width: 156,
-                minWidth: 156,
                 sortable: (left, right) => (left.due_date ?? '9999-12-31').localeCompare(right.due_date ?? '9999-12-31'),
                 cellClassName: 'py-3',
                 cell: (assessment) => {
@@ -670,7 +669,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 key: 'weight',
                 label: 'Weight',
                 width: 96,
-                minWidth: 96,
                 align: 'right',
                 sortable: (left, right) => left.weight - right.weight,
                 cellClassName: 'py-3',
@@ -725,7 +723,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 key: 'score',
                 label: planMode ? 'What If' : 'Score',
                 width: 112,
-                minWidth: 112,
                 align: 'right',
                 sortable: (left, right) => (left.score ?? -1) - (right.score ?? -1),
                 cellClassName: 'py-3',
@@ -785,7 +782,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 key: 'actions',
                 label: 'Actions',
                 width: 88,
-                minWidth: 88,
                 align: 'right',
                 cell: (assessment) => (
                     <DataTableActionMenu

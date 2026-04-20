@@ -478,7 +478,7 @@ export function DataTable<T>({
     const tableMarkup = (
         <div
             data-slot="data-table-scroll-area"
-            className={cn('min-w-0', hasBoundedBodyHeight && 'min-h-0 overflow-y-auto')}
+            className={cn('min-w-0', hasBoundedBodyHeight && 'min-h-0 overflow-x-hidden overflow-y-auto')}
             style={scrollAreaStyle}
         >
             <TableShell

@@ -510,8 +510,7 @@ const AllCoursesSection: React.FC<AllCoursesSectionProps> = ({
                     </DropdownMenuItem>
                 </DataTableActionMenu>
             ),
-            headerClassName: 'w-[52px]',
-            cellClassName: 'w-[52px] align-middle',
+            cellClassName: 'align-middle',
         },
     ], [resolvedSubjectColorMap]);
 

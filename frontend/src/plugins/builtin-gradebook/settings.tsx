@@ -417,7 +417,6 @@ const GradebookDefaultsSettings: React.FC<PluginSettingsSectionProps> = ({
                             key: 'actions',
                             label: 'Actions',
                             width: 88,
-                            minWidth: 88,
                             align: 'right',
                             cell: (category, index) => (
                                 <DataTableActionMenu triggerLabel={`Open actions for ${category.name}`}>
@@ -603,7 +602,6 @@ const CourseGradebookSettings: React.FC<PluginSettingsSectionProps> = ({
                             key: 'actions',
                             label: 'Actions',
                             width: 88,
-                            minWidth: 88,
                             align: 'right',
                             cell: (category) => (
                                 <DataTableActionMenu triggerLabel={`Open actions for ${category.name}`}>
