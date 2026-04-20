@@ -346,7 +346,7 @@ export const LmsIntegrationManager: React.FC = () => {
         title="LMS Integrations"
         description="Save reusable LMS connections for Program binding and Course linking."
         showHeader={false}
-        minWidthClassName="min-w-[42rem] sm:min-w-[52rem]"
+        minWidthClassName="min-w-[34rem]"
         actionButton={(
           <Button type="button" className="shrink-0 self-start" onClick={openCreateDialog}>
             <Plus className="mr-2 h-4 w-4" />
@@ -369,7 +369,7 @@ export const LmsIntegrationManager: React.FC = () => {
           {
             key: 'provider',
             label: 'LMS Provider',
-            width: 200,
+            width: 160,
             cell: (integration) => {
               const definition = getLmsProviderDefinition(integration.provider);
               return definition ? (
@@ -408,7 +408,7 @@ export const LmsIntegrationManager: React.FC = () => {
           },
           {
             key: 'actions',
-            label: 'Actions',
+            label: '',
             width: 64,
             align: 'right',
             cell: (integration) => {

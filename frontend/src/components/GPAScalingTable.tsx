@@ -7,8 +7,8 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { AppEmptyState } from '@/components/AppEmptyState';
+import { useState, useEffect, useMemo } from 'react';
+import { DataTable, DataTableActionMenu, type ColumnDef } from '@/components/DataTable';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -18,11 +18,11 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Trash2 } from 'lucide-react';
 
 interface GPAScalingTableProps {
@@ -104,8 +104,9 @@ function serializeEntries(entries: GpaEntry[]): string {
     return JSON.stringify(obj);
 }
 
-export const GPAScalingTable: React.FC<GPAScalingTableProps> = ({ value, onChange }) => {
+export function GPAScalingTable({ value, onChange }: GPAScalingTableProps) {
     const [entries, setEntries] = useState<GpaEntry[]>([]);
+    const [pendingDeleteEntry, setPendingDeleteEntry] = useState<GpaEntry | null>(null);
 
     // Sync from parent JSON
     useEffect(() => {
@@ -155,8 +156,10 @@ export const GPAScalingTable: React.FC<GPAScalingTableProps> = ({ value, onChang
         setNewGpa('');
     };
 
-    const handleRemove = (index: number) => {
-        const updated = entries.filter((_, i) => i !== index).sort((a, b) => b.min - a.min);
+    const handleRemove = (entry: GpaEntry) => {
+        const updated = entries
+            .filter(e => !(e.min === entry.min && e.max === entry.max))
+            .sort((a, b) => b.min - a.min);
         setEntries(updated);
         onChange(serializeEntries(updated));
     };
@@ -165,70 +168,62 @@ export const GPAScalingTable: React.FC<GPAScalingTableProps> = ({ value, onChang
         return hasFullContinuousCoverage(entries);
     }, [entries]);
 
+    const columns: ColumnDef<GpaEntry>[] = [
+        {
+            key: 'scoreRange',
+            label: 'Score Range',
+            fit: 'fill',
+            cell: (entry) => (
+                <span className="tabular-nums">
+                    <span className="font-medium text-foreground">{entry.min}</span>
+                    <span className="text-muted-foreground/40 mx-1.5">–</span>
+                    <span className="font-medium text-foreground">{entry.max}</span>
+                    <span className="text-[10px] text-muted-foreground/60 ml-1">%</span>
+                </span>
+            ),
+        },
+        {
+            key: 'gpa',
+            label: 'Resulting GPA',
+            width: 160,
+            cell: (entry) => (
+                <span className="font-semibold tabular-nums text-primary">
+                    {entry.gpa.toFixed(1)}
+                    <span className="text-muted-foreground/50 font-normal text-xs ml-1">GPA</span>
+                </span>
+            ),
+        },
+        {
+            key: 'actions',
+            label: '',
+            width: 56,
+            align: 'right',
+            cell: (entry) => (
+                <DataTableActionMenu triggerLabel={`Actions for ${entry.min}–${entry.max}`}>
+                    <DropdownMenuItem
+                        variant="destructive"
+                        onClick={() => setPendingDeleteEntry(entry)}
+                    >
+                        <Trash2 className="h-4 w-4" />
+                        Delete rule
+                    </DropdownMenuItem>
+                </DataTableActionMenu>
+            ),
+        },
+    ];
+
     return (
         <div className="space-y-4">
 
-            {/* Existing rows (auto-sorted) */}
-            {entries.length > 0 ? (
-                <div className="rounded-md border bg-background shadow-sm overflow-hidden transition-all">
-                    <div className="divide-y relative">
-                        {entries.map((entry, idx) => (
-                            <div
-                                key={`${entry.min}-${entry.max}`}
-                                className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors group"
-                            >
-                                <div className="flex flex-1 items-center gap-4">
-                                    <div className="flex items-center justify-between min-w-[5.5rem] text-sm tabular-nums text-muted-foreground gap-1.5 whitespace-nowrap">
-                                        <span className="font-medium text-foreground w-7 text-right">{entry.min}</span>
-                                        <span className="text-muted-foreground/40">-</span>
-                                        <span className="font-medium text-foreground w-9 text-left">{entry.max} <span className="text-[10px] text-muted-foreground/60 ml-[1px]">%</span></span>
-                                    </div>
-                                    <div className="h-4 w-[1px] bg-border/60 hidden sm:block mx-1"></div>
-                                    <span className="font-semibold tabular-nums text-primary text-sm">
-                                        {entry.gpa.toFixed(1)} <span className="text-muted-foreground/50 font-normal text-xs ml-0.5">GPA</span>
-                                    </span>
-                                </div>
-
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            type="button"
-                                            className="h-8 w-8 text-muted-foreground md:opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-destructive/10 hover:text-destructive -mr-2 transition-all"
-                                            aria-label={`Remove rule ${entry.min}–${entry.max}`}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent size="sm">
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Delete scaling rule?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                Remove the {entry.min}-{entry.max}% rule from this GPA scaling table.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction variant="destructive" onClick={() => handleRemove(idx)}>
-                                                Delete rule
-                                            </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            ) : (
-                <AppEmptyState
-                    scenario="create"
-                    size="section"
-                    title="No scaling rules defined"
-                    description="Add a rule below to get started."
-                    className="min-h-[180px] px-5 py-8"
-                />
-            )}
+            <DataTable
+                title=""
+                description=""
+                showHeader={false}
+                items={entries}
+                columns={columns}
+                getRowKey={(entry) => `${entry.min}-${entry.max}`}
+                emptyMessage="No scaling rules defined."
+            />
 
             {/* Coverage warning */}
             {entries.length > 0 && !isFullCoverage && (
@@ -297,6 +292,33 @@ export const GPAScalingTable: React.FC<GPAScalingTableProps> = ({ value, onChang
                 </Button>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
+
+            {/* Controlled delete confirmation dialog — rendered outside the dropdown to avoid nesting issues */}
+            <AlertDialog
+                open={pendingDeleteEntry !== null}
+                onOpenChange={(open) => { if (!open) setPendingDeleteEntry(null); }}
+            >
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete scaling rule?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Remove the {pendingDeleteEntry?.min}-{pendingDeleteEntry?.max}% rule from this GPA scaling table.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => {
+                                if (pendingDeleteEntry) handleRemove(pendingDeleteEntry);
+                                setPendingDeleteEntry(null);
+                            }}
+                        >
+                            Delete rule
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
-};
+}
