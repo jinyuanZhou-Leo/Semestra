@@ -3,7 +3,7 @@
 // 2. render props for custom header or row markup
 // Sorting and pagination are client-side; callback indexes stay absolute across pages.
 
-import { useEffect, useMemo, useState, type ComponentProps, type Key, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type Key, type ReactNode } from 'react';
 import {
     ChevronDown,
     ChevronUp,
@@ -152,6 +152,7 @@ function renderTextCell(textValue: string): ReactNode {
 function defaultComparator<T>(a: T, b: T, key: string): number {
     const av = (a as Record<string, unknown>)[key];
     const bv = (b as Record<string, unknown>)[key];
+    // Both numeric → numeric diff; anything else (including mixed types) → string compare.
     if (typeof av === 'number' && typeof bv === 'number') return av - bv;
     return String(av ?? '').localeCompare(String(bv ?? ''));
 }
@@ -404,8 +405,9 @@ export function DataTable<T>({
                 ? col.sortable
                 : (a: T, b: T) => defaultComparator(a, b, sortKey);
 
-        const sorted = [...items].sort(comparator);
-        return sortDir === 'desc' ? sorted.reverse() : sorted;
+        // Negate comparator for desc — avoids reverse() which breaks stable sort for equal keys.
+        const sign = sortDir === 'desc' ? -1 : 1;
+        return [...items].sort((a, b) => sign * comparator(a, b));
     }, [items, columns, sortKey, sortDir]);
 
     // ── Layout flags ───────────────────────────────────────────────────────────
@@ -453,19 +455,25 @@ export function DataTable<T>({
     }, [hasPagination, paginationPageSize, sortDir, sortKey]);
 
     useEffect(() => {
-        if (!hasPagination || currentPage <= totalPages) {
-            return;
-        }
-        setCurrentPage(totalPages);
-    }, [currentPage, hasPagination, totalPages]);
+        if (!hasPagination) return;
+        setCurrentPage((p) => (p > totalPages ? totalPages : p));
+    }, [hasPagination, totalPages]);
 
     const pageStartIndex = hasPagination ? (visiblePage - 1) * paginationPageSize : 0;
 
+    const warnedIndexKeyRef = useRef(false);
     const resolveRowKey = (item: T, index: number): Key => {
         if (getRowKey) return getRowKey(item, index);
         const id = (item as Record<string, unknown>).id;
-        return (id !== undefined && id !== null) ? String(id) : index;
+        if (id !== undefined && id !== null) return String(id);
+        if (process.env.NODE_ENV !== 'production' && !warnedIndexKeyRef.current && columns?.some((c) => c.sortable)) {
+            warnedIndexKeyRef.current = true;
+            console.warn('[DataTable] Sortable columns detected but no getRowKey provided. Falling back to index keys may cause reconciliation issues when rows reorder.');
+        }
+        return index;
     };
+
+    const colCount = columns?.length ?? 1;
 
     const tableMarkup = (
         <div
@@ -527,9 +535,16 @@ export function DataTable<T>({
                                     const currentDir: SortDirection = isActiveSortCol ? sortDir : null;
                                     const SortIcon = SORT_ICON[currentDir ?? 'null'];
 
+                                    const ariaSort = isSortable
+                                        ? (isActiveSortCol && sortDir === 'asc' ? 'ascending' : isActiveSortCol && sortDir === 'desc' ? 'descending' : 'none')
+                                        : undefined;
+
                                     return (
                                         <TableHead
                                             key={col.key}
+                                            role={isSortable ? 'button' : undefined}
+                                            tabIndex={isSortable ? 0 : undefined}
+                                            aria-sort={ariaSort}
                                             className={cn(
                                                 'overflow-hidden text-ellipsis whitespace-nowrap',
                                                 ALIGN_CLASS[align],
@@ -537,6 +552,12 @@ export function DataTable<T>({
                                                 col.headerClassName,
                                             )}
                                             onClick={isSortable ? () => handleSortClick(col.key) : undefined}
+                                            onKeyDown={isSortable ? (e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    handleSortClick(col.key);
+                                                }
+                                            } : undefined}
                                         >
                                             {isSortable ? (
                                                 <span className="inline-flex items-center gap-1">
@@ -569,7 +590,7 @@ export function DataTable<T>({
                         {/* Loading state */}
                         {isLoading && (
                             <TableRow>
-                                <TableCell colSpan={100} className="py-8 text-center text-sm text-muted-foreground">
+                                <TableCell colSpan={colCount} className="py-8 text-center text-sm text-muted-foreground">
                                     <div className="flex justify-center">
                                         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground/50" />
                                     </div>
@@ -579,7 +600,7 @@ export function DataTable<T>({
 
                         {/* Empty state */}
                         {!isLoading && visibleItems.length === 0 && (
-                            <EmptyTableRow colSpan={100} message={emptyMessage} className={emptyRowClassName} />
+                            <EmptyTableRow colSpan={colCount} message={emptyMessage} className={emptyRowClassName} />
                         )}
 
                         {/* Columns-API rows */}
