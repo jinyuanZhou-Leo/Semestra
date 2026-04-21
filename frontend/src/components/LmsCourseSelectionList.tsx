@@ -7,17 +7,11 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { CalendarRange, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 
-import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { AppEmptyState } from '@/components/AppEmptyState';
+import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -154,33 +148,27 @@ export const LmsCourseSelectionList: React.FC<LmsCourseSelectionListProps> = ({
       <div className="min-h-0 min-w-0 flex-1">
         {visibleCourses.length === 0 ? (
           <div className="flex h-full min-h-[220px] items-center justify-center">
-            <Empty className="border-border/70 bg-muted/20">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <CalendarRange />
-                </EmptyMedia>
-                <EmptyTitle>{emptyTitle}</EmptyTitle>
-                <EmptyDescription>{emptyDescription}</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <AppEmptyState
+              scenario="unavailable"
+              size="modal"
+              surface="inherit"
+              title={emptyTitle}
+              description={emptyDescription}
+            />
           </div>
         ) : filteredCourses.length === 0 ? (
           <div className="flex h-full min-h-[220px] items-center justify-center">
-            <Empty className="border-border/70 bg-muted/20">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Search />
-                </EmptyMedia>
-                <EmptyTitle>No matching courses</EmptyTitle>
-                <EmptyDescription>
-                  {searchTerm || selectedYear !== 'all' ? noResultsDescription : emptyDescription}
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <AppEmptyState
+              scenario="no-results"
+              size="modal"
+              surface="inherit"
+              title="No matching courses"
+              description={searchTerm || selectedYear !== 'all' ? noResultsDescription : emptyDescription}
+            />
           </div>
         ) : (
           <ScrollArea className="h-full min-h-0 min-w-0">
-            <div className="grid min-w-0 grid-cols-1 gap-3 px-1.5 py-1 pr-5">
+            <div className="grid min-w-0 gap-2 px-1.5 py-1 pr-5">
               {filteredCourses.map((course) => {
                 const checked = selectedCourseIds.includes(course.external_id);
                 const disabledReason = disabledCourseReasons[course.external_id];
@@ -192,31 +180,28 @@ export const LmsCourseSelectionList: React.FC<LmsCourseSelectionListProps> = ({
                   <label
                     key={course.external_id}
                     className={cn(
-                      'block',
-                      isDisabled
-                        ? 'cursor-not-allowed'
-                        : 'cursor-pointer',
+                      'block min-w-0',
+                      isDisabled ? 'cursor-not-allowed' : 'cursor-pointer',
                     )}
                   >
                     <Card
+                      size="sm"
                       className={cn(
-                        'gap-3 py-0 transition-colors',
+                        'min-w-0 py-0 transition-colors',
                         checked && !isDisabled && 'bg-accent/40',
-                        isDisabled
-                          ? 'opacity-60'
-                          : 'hover:bg-accent/20',
+                        isDisabled ? 'opacity-60' : 'hover:bg-accent/20',
                       )}
                     >
-                      <CardHeader className="grid-cols-[1fr_auto] gap-x-3 gap-y-3 border-b border-border/60 py-4">
-                        <div className="flex min-w-0 flex-col gap-2">
-                          <CardTitle className="truncate text-sm">{course.name}</CardTitle>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-medium text-muted-foreground">{courseCode}</span>
-                            {courseYear ? <span className="text-xs text-muted-foreground">{courseYear}</span> : null}
+                      <div className="flex items-start gap-3 px-4 py-3">
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <p className="truncate text-sm font-medium">{course.name}</p>
+                          <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span className="min-w-0 break-all">
+                              {courseCode}
+                              {courseYear ? ` · ${courseYear}` : ''}
+                            </span>
                             {isDisabled ? (
-                              <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                                Linked
-                              </span>
+                              <span className="rounded-md bg-muted px-2 py-0.5 text-muted-foreground">Linked</span>
                             ) : null}
                           </div>
                         </div>
@@ -224,9 +209,9 @@ export const LmsCourseSelectionList: React.FC<LmsCourseSelectionListProps> = ({
                           checked={checked}
                           disabled={isDisabled}
                           onCheckedChange={(nextChecked) => toggleCourseSelection(course.external_id, Boolean(nextChecked))}
-                          className="mt-0.5"
+                          className="mt-0.5 shrink-0"
                         />
-                      </CardHeader>
+                      </div>
                     </Card>
                   </label>
                 );

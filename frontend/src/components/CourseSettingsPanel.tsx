@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,8 +24,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ColorPicker, type ColorPickerPreset } from "@/components/ui/color-picker";
 import { Switch } from "@/components/ui/switch";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
+import { AppEmptyState } from "@/components/AppEmptyState";
 import { SettingsSection } from "./SettingsSection";
+import { ResponsiveDialogDrawer } from "./ResponsiveDialogDrawer";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { cn } from "@/lib/utils";
 import { normalizeSubjectCode, resolveCourseSubjectCode } from "@/utils/courseCategoryBadge";
@@ -39,7 +43,7 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import type { LmsCourseLinkSummary, LmsCourseSummary } from "@/services/api";
-import { Link2, RefreshCw, Unplug } from "lucide-react";
+import { Link2, Pencil, RefreshCw, Search, Unplug } from "lucide-react";
 
 const COURSE_COLOR_PRESETS: readonly ColorPickerPreset[] = [
   { name: 'Blue', value: '#2563eb' },
@@ -51,6 +55,23 @@ const COURSE_COLOR_PRESETS: readonly ColorPickerPreset[] = [
   { name: 'Amber', value: '#ca8a04' },
   { name: 'Sky', value: '#0ea5e9' },
 ];
+
+const YEAR_PATTERN = /\b(20\d{2})\b/;
+
+const extractLmsCourseYear = (course: LmsCourseSummary): string | null => {
+  for (const candidate of [course.start_at, course.end_at]) {
+    if (typeof candidate === 'string' && candidate.length >= 4) {
+      const year = candidate.slice(0, 4);
+      if (/^\d{4}$/.test(year)) return year;
+    }
+  }
+  for (const candidate of [course.name, course.course_code]) {
+    if (typeof candidate !== 'string') continue;
+    const matched = candidate.match(YEAR_PATTERN)?.[1];
+    if (matched) return matched;
+  }
+  return null;
+};
 
 const LMS_PROVIDER_ICONS: Record<string, { src: string; alt: string }> = {
   canvas: {
@@ -114,9 +135,11 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   const [credits, setCredits] = useState(String(initialSettings?.credits || ""));
   const [includeInGpa, setIncludeInGpa] = useState(initialSettings?.include_in_gpa ?? true);
   const [hideGpa, setHideGpa] = useState(initialSettings?.hide_gpa ?? false);
-  const [selectedLmsCourseId, setSelectedLmsCourseId] = useState(lmsLink?.external_course_id ?? "");
   const [lmsSyncEnabled, setLmsSyncEnabled] = useState(lmsLink?.sync_enabled ?? true);
   const [isLmsBusy, setIsLmsBusy] = useState(false);
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [linkSearch, setLinkSearch] = useState('');
+  const [linkYear, setLinkYear] = useState('all');
   const [isPinnedToHomepage, setIsPinnedToHomepage] = useState(initialPinnedToHomepage);
   const [isConfirmingUnpin, setIsConfirmingUnpin] = useState(false);
   const fieldId = useId();
@@ -214,9 +237,8 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   }, [automaticColor, useCustomColor]);
 
   useEffect(() => {
-    setSelectedLmsCourseId(lmsLink?.external_course_id ?? "");
     setLmsSyncEnabled(lmsLink?.sync_enabled ?? true);
-  }, [lmsLink?.external_course_id, lmsLink?.sync_enabled]);
+  }, [lmsLink?.sync_enabled]);
 
   useEffect(() => {
     setIsPinnedToHomepage(initialPinnedToHomepage);
@@ -269,12 +291,6 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
     suggestedCategory && suggestedCategory !== normalizedCurrentCategory,
   );
   const hasLmsLink = Boolean(lmsLink);
-  const canApplyLmsLink = Boolean(
-    selectedLmsCourseId
-    && onLinkCourse
-    && !isLmsBusy
-    && selectedLmsCourseId !== lmsLink?.external_course_id,
-  );
   const syncButtonDisabled = !lmsLink || !onSyncCourseLink || isLmsBusy || !lmsSyncEnabled;
   const linkedCourseLabel = lmsLink
     ? `${lmsLink.external_name || lmsLink.external_course_id}${lmsLink.external_course_code ? ` (${lmsLink.external_course_code})` : ""}`
@@ -284,14 +300,34 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
     ? formatDistanceToNow(new Date(lmsLink.last_synced_at), { addSuffix: true })
     : null;
 
-  const handleApplyLmsLink = async () => {
-    if (!selectedLmsCourseId || !onLinkCourse) return;
+  const deferredLinkSearch = useDeferredValue(linkSearch);
+  const visibleLmsCourses = useMemo(
+    () => availableLmsCourses.filter((c) => c.name.trim().length > 0),
+    [availableLmsCourses],
+  );
+  const linkYearOptions = useMemo(
+    () => Array.from(new Set(
+      visibleLmsCourses.map(extractLmsCourseYear).filter((y): y is string => y !== null)
+    )).sort((a, b) => Number(b) - Number(a)),
+    [visibleLmsCourses],
+  );
+  const linkFilteredCourses = useMemo(() => {
+    const q = deferredLinkSearch.trim().toLowerCase();
+    return visibleLmsCourses.filter((course) => {
+      const courseYear = extractLmsCourseYear(course);
+      if (linkYear !== 'all' && courseYear !== linkYear) return false;
+      if (!q) return true;
+      const haystack = [course.name, course.course_code ?? '', course.external_id, courseYear ?? ''].join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [visibleLmsCourses, deferredLinkSearch, linkYear]);
+
+  const handleLinkFromDialog = async (externalCourseId: string) => {
+    if (!onLinkCourse) return;
     setIsLmsBusy(true);
+    setIsLinkDialogOpen(false);
     try {
-      await onLinkCourse({
-        external_course_id: selectedLmsCourseId,
-        sync_enabled: lmsSyncEnabled,
-      });
+      await onLinkCourse({ external_course_id: externalCourseId, sync_enabled: lmsSyncEnabled });
     } finally {
       setIsLmsBusy(false);
     }
@@ -445,20 +481,11 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       <SettingsSection title="LMS" description="Link this course to an external LMS course and refresh its read-only LMS data.">
         <FieldSet>
           <FieldGroup className="space-y-6">
-            <div className="min-h-[96px] rounded-xl border border-border/70 bg-muted/20 p-4">
-              <div className="flex h-full flex-col justify-between gap-3 sm:flex-row sm:items-start">
-                <div className="min-w-0 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {lmsLink?.last_error?.message ? (
-                      <Badge variant="outline" className="text-destructive">
-                        Sync issue
-                      </Badge>
-                    ) : null}
-                    {hasLmsLink && !lmsSyncEnabled ? (
-                      <Badge variant="outline">Sync off</Badge>
-                    ) : null}
-                  </div>
-                  <div className="space-y-1">
+            <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+              <div className="flex flex-col gap-0">
+                {/* Info row — always same height */}
+                <div className="flex min-h-[52px] items-center gap-3">
+                  <div className="min-w-0 flex-1 space-y-0.5">
                     <p className="flex items-center gap-2 text-sm font-medium">
                       {linkedProviderIcon ? (
                         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border/70 bg-background p-0.5">
@@ -471,117 +498,113 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
                       ) : null}
                       <span className="min-w-0 truncate">{linkedCourseLabel}</span>
                     </p>
-                    <p className="min-h-5 text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {!lmsIntegrationEnabled
-                        ? "Configure an LMS integration on the Program before linking courses."
+                        ? "Set up an LMS integration in Program settings first."
                         : lmsLink?.last_error?.message
                           ? lmsLink.last_error.message
                           : relativeLastRefresh
                             ? `Last refreshed ${relativeLastRefresh}`
-                            : "Linking keeps LMS assignments and calendar events available without changing your local course data."}
+                            : "Sync assignments and events from your LMS."}
                     </p>
                   </div>
                 </div>
-                {lmsLink ? (
-                  <div className="flex shrink-0 flex-wrap gap-2">
+
+                {/* Action row — always rendered, content switches per state */}
+                <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3 mt-3">
+                  {hasLmsLink ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={!lmsIntegrationEnabled || availableLmsCourses.length === 0 || isLmsBusy}
+                        onClick={() => setIsLinkDialogOpen(true)}
+                      >
+                        <Pencil className="mr-2 h-3.5 w-3.5" />
+                        Change
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={syncButtonDisabled}
+                        onClick={async () => {
+                          if (!onSyncCourseLink) return;
+                          setIsLmsBusy(true);
+                          try {
+                            await onSyncCourseLink({ sync_enabled: lmsSyncEnabled });
+                          } finally {
+                            setIsLmsBusy(false);
+                          }
+                        }}
+                      >
+                        <RefreshCw className={cn("mr-2 h-3.5 w-3.5", isLmsBusy && "animate-spin")} />
+                        Sync Now
+                      </Button>
+                      {lmsLink?.last_error?.message ? (
+                        <Badge variant="outline" className="text-destructive">Sync issue</Badge>
+                      ) : null}
+                      {!lmsSyncEnabled ? (
+                        <Badge variant="outline">Sync off</Badge>
+                      ) : null}
+                      <div className="ml-auto">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              disabled={!onUnlinkCourse || isLmsBusy}
+                            >
+                              <Unplug className="mr-2 h-3.5 w-3.5" />
+                              Disconnect
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent size="sm">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Disconnect LMS course?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This course will keep its local data, but LMS assignments and calendar events will stop refreshing until you link it again.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel disabled={isLmsBusy}>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                variant="destructive"
+                                disabled={isLmsBusy}
+                                onClick={async () => {
+                                  if (!onUnlinkCourse) return;
+                                  setIsLmsBusy(true);
+                                  try {
+                                    await onUnlinkCourse();
+                                  } finally {
+                                    setIsLmsBusy(false);
+                                  }
+                                }}
+                              >
+                                Disconnect
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </>
+                  ) : (
                     <Button
                       type="button"
-                      variant="outline"
-                      disabled={syncButtonDisabled}
-                      onClick={async () => {
-                        if (!onSyncCourseLink) return;
-                        setIsLmsBusy(true);
-                        try {
-                          await onSyncCourseLink({ sync_enabled: lmsSyncEnabled });
-                        } finally {
-                          setIsLmsBusy(false);
-                        }
-                      }}
+                      size="sm"
+                      disabled={!lmsIntegrationEnabled || availableLmsCourses.length === 0 || isLmsBusy}
+                      onClick={() => setIsLinkDialogOpen(true)}
                     >
-                      <RefreshCw className={cn("mr-2 h-4 w-4", isLmsBusy && "animate-spin")} />
-                      Sync Now
+                      <Link2 className="mr-2 h-3.5 w-3.5" />
+                      Link LMS Course
                     </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          disabled={!onUnlinkCourse || isLmsBusy}
-                        >
-                          <Unplug className="mr-2 h-4 w-4" />
-                          Disconnect
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent size="sm">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Disconnect LMS course?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This course will keep its local data, but LMS assignments and calendar events will stop refreshing until you link it again.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel disabled={isLmsBusy}>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            variant="destructive"
-                            disabled={isLmsBusy}
-                            onClick={async () => {
-                              if (!onUnlinkCourse) return;
-                              setIsLmsBusy(true);
-                              try {
-                                await onUnlinkCourse();
-                              } finally {
-                                setIsLmsBusy(false);
-                              }
-                            }}
-                          >
-                            Disconnect
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                ) : null}
+                  )}
+                </div>
               </div>
             </div>
-
-            <Field>
-              <FieldLabel htmlFor={`${fieldId}-lms-course`}>
-                {hasLmsLink ? "Change linked LMS course" : "Link an LMS course"}
-              </FieldLabel>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <NativeSelect
-                  id={`${fieldId}-lms-course`}
-                  className="w-full"
-                  value={selectedLmsCourseId || "__none__"}
-                  onChange={(event) => setSelectedLmsCourseId(event.target.value === "__none__" ? "" : event.target.value)}
-                  disabled={!lmsIntegrationEnabled || availableLmsCourses.length === 0 || isLmsBusy}
-                >
-                  <NativeSelectOption value="__none__">
-                    {hasLmsLink ? "Choose another LMS course" : "Choose an LMS course"}
-                  </NativeSelectOption>
-                  {availableLmsCourses.map((courseOption) => (
-                    <NativeSelectOption key={courseOption.external_id} value={courseOption.external_id}>
-                      {courseOption.name}{courseOption.course_code ? ` (${courseOption.course_code})` : ""}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-                <Button
-                  type="button"
-                  className="shrink-0"
-                  disabled={!canApplyLmsLink}
-                  onClick={() => void handleApplyLmsLink()}
-                >
-                  <Link2 className="mr-2 h-4 w-4" />
-                  {hasLmsLink ? "Update Link" : "Link Course"}
-                </Button>
-              </div>
-              <FieldDescription>
-                {!lmsIntegrationEnabled
-                  ? "Program LMS integration is required before you can link this course."
-                  : "Choose the LMS course that should supply assignments and calendar events for this course."}
-              </FieldDescription>
-            </Field>
 
             <Field orientation="responsive">
               <FieldContent>
@@ -630,6 +653,114 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
           </FieldGroup>
         </FieldSet>
       </SettingsSection>
+
+      <ResponsiveDialogDrawer
+        open={isLinkDialogOpen}
+        onOpenChange={(open) => {
+          setIsLinkDialogOpen(open);
+          if (!open) {
+            setLinkSearch('');
+            setLinkYear('all');
+          }
+        }}
+        title={hasLmsLink ? "Change Linked LMS Course" : "Link LMS Course"}
+        desktopContentClassName="flex h-[560px] flex-col overflow-hidden sm:max-w-lg"
+        mobileContentClassName="flex h-[80vh] max-h-[80vh] flex-col overflow-hidden"
+        footer={
+          <Button variant="outline" onClick={() => setIsLinkDialogOpen(false)}>
+            Cancel
+          </Button>
+        }
+      >
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="grid flex-none gap-3 sm:grid-cols-[1fr_9rem]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search LMS courses..."
+                value={linkSearch}
+                onChange={(e) => setLinkSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={linkYear} onValueChange={setLinkYear}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All years" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All years</SelectItem>
+                  {linkYearOptions.map((year) => (
+                    <SelectItem key={year} value={year}>{year}</SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {visibleLmsCourses.length === 0 ? (
+              <div className="flex h-full min-h-[200px] items-center justify-center">
+                <AppEmptyState
+                  scenario="unavailable"
+                  size="modal"
+                  surface="inherit"
+                  title="No LMS courses found"
+                  description="This program has no available LMS courses."
+                />
+              </div>
+            ) : linkFilteredCourses.length === 0 ? (
+              <div className="flex h-full min-h-[200px] items-center justify-center">
+                <AppEmptyState
+                  scenario="no-results"
+                  size="modal"
+                  surface="inherit"
+                  title="No matching courses"
+                  description="Try a different keyword or year."
+                />
+              </div>
+            ) : (
+              <ScrollArea className="h-full min-h-0 min-w-0">
+                <div className="grid min-w-0 gap-2 px-1.5 py-1 pr-5">
+                  {linkFilteredCourses.map((course) => {
+                    const isLinked = course.external_id === lmsLink?.external_course_id;
+                    const courseCode = course.course_code || course.external_id;
+                    const courseYear = extractLmsCourseYear(course);
+                    return (
+                      <Card
+                        key={course.external_id}
+                        size="sm"
+                        className={cn(
+                          "py-0 transition-colors",
+                          isLinked ? "bg-accent/30" : "hover:bg-accent/20",
+                        )}
+                      >
+                        <div className="flex items-start gap-3 px-4 py-3">
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            <p className="truncate text-sm font-medium">{course.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {courseCode}{courseYear ? ` · ${courseYear}` : ''}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            disabled={isLinked || isLmsBusy}
+                            onClick={isLinked ? undefined : () => void handleLinkFromDialog(course.external_id)}
+                          >
+                            {isLinked ? "Linked" : "Link"}
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+        </div>
+      </ResponsiveDialogDrawer>
 
       <AlertDialog open={isConfirmingUnpin} onOpenChange={setIsConfirmingUnpin}>
         <AlertDialogContent size="sm">
