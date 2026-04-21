@@ -239,12 +239,11 @@ const EventTypeSetupTable: React.FC<{
   }, [items, onChange, pendingDeleteType]);
 
   const columns: ColumnDef<EventTypeSetupItem>[] = [
-    { key: 'code',         label: 'Type',             fit: 'fill', cellClassName: 'font-medium' },
-    { key: 'abbreviation', label: 'Abbr',             width: 80 },
+    { key: 'code',         label: 'Type',             cellClassName: 'font-medium' },
+    { key: 'abbreviation', label: 'Abbr' },
     {
       key: 'track_attendance',
       label: 'Track Attendance',
-      width: 168,
       cell: (item) => (
         <Badge variant={item.track_attendance ? "default" : "secondary"}>
           {item.track_attendance ? "Yes" : "No"}
@@ -254,7 +253,6 @@ const EventTypeSetupTable: React.FC<{
     ...(!readOnly ? [{
       key: 'actions',
       label: 'Actions',
-      width: 72,
       align: 'right' as const,
       cell: (item: EventTypeSetupItem) => (
         <DataTableActionMenu triggerLabel={`Open actions for ${item.code}`}>

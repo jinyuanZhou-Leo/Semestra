@@ -567,8 +567,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             {
                 key: 'category',
                 label: 'Category',
-                width: 150,
-                minWidth: 140,
                 sortable: (left, right) => {
                     const leftName = categoriesById.get(left.category_id ?? '')?.name ?? '';
                     const rightName = categoriesById.get(right.category_id ?? '')?.name ?? '';
