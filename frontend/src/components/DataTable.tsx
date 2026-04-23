@@ -131,6 +131,11 @@ export interface ColumnDef<T> {
     cellClassName?: string | ((item: T) => string);
 }
 
+export interface DataTableSortState {
+    key: string | null;
+    direction: SortDirection;
+}
+
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -339,6 +344,9 @@ export interface DataTableProps<T> {
         /** Item label used in the footer count summary. Default: 'items'. */
         itemLabel?: string;
     };
+    /** Optional controlled sort state for callers that persist table preferences. */
+    sortState?: DataTableSortState;
+    onSortStateChange?: (sortState: DataTableSortState) => void;
 
     // ── Style overrides ───────────────────────────────────────────────────────
     /** Extra className on the outermost wrapper div. */
@@ -368,6 +376,8 @@ export function DataTable<T>({
     maxBodyHeight,
     freezeHeader = false,
     pagination,
+    sortState,
+    onSortStateChange,
     rootClassName,
     shellClassName,
     tableClassName,
@@ -377,6 +387,8 @@ export function DataTable<T>({
     // ── Sort state ─────────────────────────────────────────────────────────────
     const [sortKey, setSortKey] = useState<string | null>(null);
     const [sortDir, setSortDir] = useState<SortDirection>(null);
+    const effectiveSortKey = sortState?.key ?? sortKey;
+    const effectiveSortDir = sortState?.direction ?? sortDir;
     const [currentPage, setCurrentPage] = useState(1);
 
     /**
@@ -384,33 +396,34 @@ export function DataTable<T>({
      * Clicking a different column resets to asc immediately.
      */
     const handleSortClick = (key: string) => {
-        if (sortKey !== key) {
-            setSortKey(key);
-            setSortDir('asc');
-        } else if (sortDir === 'asc') {
-            setSortDir('desc');
+        let nextSortState: DataTableSortState;
+        if (effectiveSortKey !== key) {
+            nextSortState = { key, direction: 'asc' };
+        } else if (effectiveSortDir === 'asc') {
+            nextSortState = { key, direction: 'desc' };
         } else {
-            // desc → reset
-            setSortKey(null);
-            setSortDir(null);
+            nextSortState = { key: null, direction: null };
         }
+        setSortKey(nextSortState.key);
+        setSortDir(nextSortState.direction);
+        onSortStateChange?.(nextSortState);
     };
 
     // ── Sorted items ───────────────────────────────────────────────────────────
     const sortedItems = useMemo(() => {
-        if (!columns || !sortKey || !sortDir) return items;
-        const col = columns.find((c) => c.key === sortKey);
+        if (!columns || !effectiveSortKey || !effectiveSortDir) return items;
+        const col = columns.find((c) => c.key === effectiveSortKey);
         if (!col?.sortable) return items;
 
         const comparator =
             typeof col.sortable === 'function'
                 ? col.sortable
-                : (a: T, b: T) => defaultComparator(a, b, sortKey);
+                : (a: T, b: T) => defaultComparator(a, b, effectiveSortKey);
 
         // Negate comparator for desc — avoids reverse() which breaks stable sort for equal keys.
-        const sign = sortDir === 'desc' ? -1 : 1;
+        const sign = effectiveSortDir === 'desc' ? -1 : 1;
         return [...items].sort((a, b) => sign * comparator(a, b));
-    }, [items, columns, sortKey, sortDir]);
+    }, [items, columns, effectiveSortKey, effectiveSortDir]);
 
     // ── Layout flags ───────────────────────────────────────────────────────────
     /**
@@ -454,7 +467,7 @@ export function DataTable<T>({
             return;
         }
         setCurrentPage(1);
-    }, [hasPagination, paginationPageSize, sortDir, sortKey]);
+    }, [hasPagination, paginationPageSize, effectiveSortDir, effectiveSortKey]);
 
     useEffect(() => {
         if (!hasPagination) return;
@@ -534,12 +547,12 @@ export function DataTable<T>({
                                 {columns.map((col) => {
                                     const align = col.align ?? 'left';
                                     const isSortable = Boolean(col.sortable);
-                                    const isActiveSortCol = sortKey === col.key;
-                                    const currentDir: SortDirection = isActiveSortCol ? sortDir : null;
+                                    const isActiveSortCol = effectiveSortKey === col.key;
+                                    const currentDir: SortDirection = isActiveSortCol ? effectiveSortDir : null;
                                     const SortIcon = SORT_ICON[currentDir ?? 'null'];
 
                                     const ariaSort = isSortable
-                                        ? (isActiveSortCol && sortDir === 'asc' ? 'ascending' : isActiveSortCol && sortDir === 'desc' ? 'descending' : 'none')
+                                        ? (isActiveSortCol && effectiveSortDir === 'asc' ? 'ascending' : isActiveSortCol && effectiveSortDir === 'desc' ? 'descending' : 'none')
                                         : undefined;
 
                                     return (

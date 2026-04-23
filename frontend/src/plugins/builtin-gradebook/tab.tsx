@@ -14,7 +14,7 @@ import { ArrowRightLeft, CalendarDays, FlaskConical, GraduationCap, Pencil, Perc
 import { toast } from 'sonner';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
-import { DataTable, DataTableActionMenu, type ColumnDef } from '@/components/DataTable';
+import { DataTable, DataTableActionMenu, type ColumnDef, type DataTableSortState } from '@/components/DataTable';
 import api, {
     type CourseGradebook,
     type GradebookAssessment,
@@ -165,6 +165,13 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         planMode: false,
         whatIfDrafts: {},
         targetInputMode: 'gpa',
+    }));
+    const {
+        state: assessmentSortState,
+        setState: setAssessmentSortState,
+    } = usePluginUiState<DataTableSortState>('gradebook-assessment-sort', () => ({
+        key: null,
+        direction: null,
     }));
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
     const [isMutating, setIsMutating] = React.useState(false);
@@ -328,7 +335,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 
     const enterPlanMode = React.useCallback(() => {
         if (!hasCompleteWeight) {
-            toast.error('Gradebook calculations stay disabled until total assessment weight is exactly 100%.');
+            toast.error('Weights must total 100%.');
             return;
         }
         updatePlanModeState({ planMode: true });
@@ -455,7 +462,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const handleRunPlan = React.useCallback(async () => {
         if (!gradebook) return;
         if (!hasCompleteGradebookWeight(gradebook)) {
-            toast.error('Gradebook calculations stay disabled until total assessment weight is exactly 100%.');
+            toast.error('Weights must total 100%.');
             return;
         }
         if (!targetGpaDraft.trim()) {
@@ -560,13 +567,17 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 minWidth: 220,
                 sortable: (left, right) => left.title.localeCompare(right.title),
                 cellClassName: 'py-3',
+                truncateCell: true,
                 cell: (assessment) => (
-                    <div className="font-medium text-foreground">{assessment.title}</div>
+                    <div className="min-w-0 truncate font-medium text-foreground" title={assessment.title}>
+                        {assessment.title}
+                    </div>
                 ),
             },
             {
                 key: 'category',
                 label: 'Category',
+                width: 132,
                 sortable: (left, right) => {
                     const leftName = categoriesById.get(left.category_id ?? '')?.name ?? '';
                     const rightName = categoriesById.get(right.category_id ?? '')?.name ?? '';
@@ -578,8 +589,9 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                     return category ? (
                         <Badge
                             variant="outline"
-                            className={cn('select-none border-0 px-2.5 py-0.5 text-xs font-medium', getCategoryBadgeClassName(category.color_token))}
+                            className={cn('max-w-full select-none truncate border-0 px-2.5 py-0.5 text-xs font-medium', getCategoryBadgeClassName(category.color_token))}
                             style={getCategoryBadgeStyle(category.color_token)}
+                            title={category.name}
                         >
                             {category.name}
                         </Badge>
@@ -679,6 +691,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 inputMode="decimal"
                                 value={weightDrafts[assessment.id] ?? ''}
                                 disabled={!canManageAssessments || isMutating}
+                                onFocus={(event) => event.currentTarget.select()}
                                 onChange={(event) => {
                                     const nextValue = event.target.value;
                                     if (!isBoundedPercentageInput(nextValue)) {
@@ -878,12 +891,12 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                         ? 'text-rose-700 dark:text-rose-300'
                                         : planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
                                 )}>
-                                    {showWeightMismatchState ? 'Grade · Weight Mismatch' : planMode ? 'Grade · What If' : 'Grade'}
+                                    {planMode ? 'Grade · What If' : 'Grade'}
                                 </p>
                             </div>
                             <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
                                 {course.hide_gpa ? '****' : showWeightMismatchState ? (
-                                    <span className="text-rose-600 dark:text-rose-400">Not calculated</span>
+                                    <span className="text-rose-600 dark:text-rose-400">N/A</span>
                                 ) : planMode && whatIfResult ? (
                                     <span className="text-amber-600 dark:text-amber-400">
                                         <AnimatedNumber
@@ -900,7 +913,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                             </div>
                             {!course.hide_gpa && showWeightMismatchState ? (
                                 <p className="mt-1 text-[11px] text-rose-700/90 dark:text-rose-300/90">
-                                    Total weight is {summary.total_weight.toFixed(1)}%. It must be exactly 100.0% to calculate.
+                                    Weight {summary.total_weight.toFixed(1)}%. Need 100%.
                                 </p>
                             ) : null}
                         </div>
@@ -926,12 +939,12 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                         ? 'text-rose-700 dark:text-rose-300'
                                         : planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
                                 )}>
-                                    {showWeightMismatchState ? 'GPA · Weight Mismatch' : planMode ? 'GPA · What If' : 'GPA (Scaled)'}
+                                    {planMode ? 'GPA · What If' : 'GPA'}
                                 </p>
                             </div>
                             <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
                                 {course.hide_gpa ? '****' : showWeightMismatchState ? (
-                                    <span className="text-rose-600 dark:text-rose-400">Not calculated</span>
+                                    <span className="text-rose-600 dark:text-rose-400">N/A</span>
                                 ) : planMode && whatIfResult ? (
                                     <span className="text-amber-600 dark:text-amber-400">
                                         <AnimatedNumber
@@ -950,7 +963,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                             </div>
                             {!course.hide_gpa && showWeightMismatchState ? (
                                 <p className="mt-1 text-[11px] text-rose-700/90 dark:text-rose-300/90">
-                                    Gradebook math stays off unless the configured weights total exactly 100%.
+                                    Set weights to 100%.
                                 </p>
                             ) : null}
                         </div>
@@ -987,6 +1000,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 <InputGroup className="min-w-0 flex-1 sm:w-32 sm:flex-none">
                                     <InputGroupInput
                                         id="gradebook-target-gpa"
+                                        aria-label={targetInputMode === 'gpa' ? 'Target GPA' : 'Target %'}
                                         className="tabular-nums"
                                         value={targetGpaDraft}
                                         inputMode="decimal"
@@ -1092,6 +1106,8 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                             items={gradebook.assessments}
                             columns={assessmentColumns}
                             getRowKey={(assessment) => assessment.id}
+                            sortState={assessmentSortState}
+                            onSortStateChange={setAssessmentSortState}
                             minWidthClassName="min-w-[54rem]"
                             maxBodyHeight={600}
                             freezeHeader
