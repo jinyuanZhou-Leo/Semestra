@@ -14,7 +14,7 @@ import { ArrowRightLeft, CalendarDays, FlaskConical, GraduationCap, Pencil, Perc
 import { toast } from 'sonner';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
-import { DataTable, DataTableActionMenu, type ColumnDef, type DataTableSortState } from '@/components/DataTable';
+import { DataTable, DataTableActionMenu, type ColumnDef } from '@/components/DataTable';
 import api, {
     type CourseGradebook,
     type GradebookAssessment,
@@ -165,13 +165,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         planMode: false,
         whatIfDrafts: {},
         targetInputMode: 'gpa',
-    }));
-    const {
-        state: assessmentSortState,
-        setState: setAssessmentSortState,
-    } = usePluginUiState<DataTableSortState>('gradebook-assessment-sort', () => ({
-        key: null,
-        direction: null,
     }));
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
     const [isMutating, setIsMutating] = React.useState(false);
@@ -1106,8 +1099,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                             items={gradebook.assessments}
                             columns={assessmentColumns}
                             getRowKey={(assessment) => assessment.id}
-                            sortState={assessmentSortState}
-                            onSortStateChange={setAssessmentSortState}
+                            sortPersistenceKey={courseId ? `gradebook-assessments:${courseId}` : undefined}
                             minWidthClassName="min-w-[54rem]"
                             maxBodyHeight={600}
                             freezeHeader

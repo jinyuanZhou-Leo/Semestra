@@ -84,6 +84,24 @@ const gradebook: CourseGradebook = {
     assessments,
 };
 
+const createMockStorage = (): Storage => {
+    const store = new Map<string, string>();
+    return {
+        get length() {
+            return store.size;
+        },
+        clear: vi.fn(() => store.clear()),
+        getItem: vi.fn((key: string) => store.get(key) ?? null),
+        key: vi.fn((index: number) => Array.from(store.keys())[index] ?? null),
+        removeItem: vi.fn((key: string) => {
+            store.delete(key);
+        }),
+        setItem: vi.fn((key: string, value: string) => {
+            store.set(key, value);
+        }),
+    };
+};
+
 const renderGradebookTab = () => {
     const queryClient = new QueryClient({
         defaultOptions: {
@@ -125,8 +143,13 @@ const buildGradebook = (overrides: Partial<CourseGradebook> = {}): CourseGradebo
 
 describe('BuiltinGradebookTab', () => {
     const originalMatchMedia = window.matchMedia;
+    const originalLocalStorage = window.localStorage;
 
     beforeEach(() => {
+        Object.defineProperty(window, 'localStorage', {
+            value: createMockStorage(),
+            configurable: true,
+        });
         resetPluginUiStateCacheForTests();
         Object.defineProperty(window, 'matchMedia', {
             writable: true,
@@ -183,6 +206,10 @@ describe('BuiltinGradebookTab', () => {
         Object.defineProperty(window, 'matchMedia', {
             writable: true,
             value: originalMatchMedia,
+        });
+        Object.defineProperty(window, 'localStorage', {
+            value: originalLocalStorage,
+            configurable: true,
         });
     });
 

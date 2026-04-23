@@ -131,7 +131,7 @@ export interface ColumnDef<T> {
     cellClassName?: string | ((item: T) => string);
 }
 
-export interface DataTableSortState {
+interface DataTableSortState {
     key: string | null;
     direction: SortDirection;
 }
@@ -189,6 +189,41 @@ const SORT_ICON = {
 
 type PaginationEntry = number | 'ellipsis';
 const DEFAULT_PAGE_SIZE = 10;
+
+function readPersistedSortState(storageKey?: string): DataTableSortState {
+    if (!storageKey || typeof window === 'undefined') {
+        return { key: null, direction: null };
+    }
+
+    try {
+        const rawValue = window.localStorage.getItem(storageKey);
+        if (!rawValue) return { key: null, direction: null };
+        const parsed = JSON.parse(rawValue) as Partial<DataTableSortState>;
+        const direction = parsed.direction === 'asc' || parsed.direction === 'desc' ? parsed.direction : null;
+        return {
+            key: typeof parsed.key === 'string' ? parsed.key : null,
+            direction,
+        };
+    } catch {
+        return { key: null, direction: null };
+    }
+}
+
+function writePersistedSortState(storageKey: string | undefined, sortState: DataTableSortState) {
+    if (!storageKey || typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        if (!sortState.key || !sortState.direction) {
+            window.localStorage.removeItem(storageKey);
+            return;
+        }
+        window.localStorage.setItem(storageKey, JSON.stringify(sortState));
+    } catch {
+        // Browsers may block storage; table sorting should still work in memory.
+    }
+}
 
 function buildPaginationEntries(totalPages: number, currentPage: number): PaginationEntry[] {
     if (totalPages <= 7) {
@@ -344,9 +379,8 @@ export interface DataTableProps<T> {
         /** Item label used in the footer count summary. Default: 'items'. */
         itemLabel?: string;
     };
-    /** Optional controlled sort state for callers that persist table preferences. */
-    sortState?: DataTableSortState;
-    onSortStateChange?: (sortState: DataTableSortState) => void;
+    /** Optional browser-local key for persisting this table's sort preference. */
+    sortPersistenceKey?: string;
 
     // ── Style overrides ───────────────────────────────────────────────────────
     /** Extra className on the outermost wrapper div. */
@@ -376,8 +410,7 @@ export function DataTable<T>({
     maxBodyHeight,
     freezeHeader = false,
     pagination,
-    sortState,
-    onSortStateChange,
+    sortPersistenceKey,
     rootClassName,
     shellClassName,
     tableClassName,
@@ -385,10 +418,8 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
 
     // ── Sort state ─────────────────────────────────────────────────────────────
-    const [sortKey, setSortKey] = useState<string | null>(null);
-    const [sortDir, setSortDir] = useState<SortDirection>(null);
-    const effectiveSortKey = sortState?.key ?? sortKey;
-    const effectiveSortDir = sortState?.direction ?? sortDir;
+    const [sortKey, setSortKey] = useState<string | null>(() => readPersistedSortState(sortPersistenceKey).key);
+    const [sortDir, setSortDir] = useState<SortDirection>(() => readPersistedSortState(sortPersistenceKey).direction);
     const [currentPage, setCurrentPage] = useState(1);
 
     /**
@@ -397,33 +428,33 @@ export function DataTable<T>({
      */
     const handleSortClick = (key: string) => {
         let nextSortState: DataTableSortState;
-        if (effectiveSortKey !== key) {
+        if (sortKey !== key) {
             nextSortState = { key, direction: 'asc' };
-        } else if (effectiveSortDir === 'asc') {
+        } else if (sortDir === 'asc') {
             nextSortState = { key, direction: 'desc' };
         } else {
             nextSortState = { key: null, direction: null };
         }
         setSortKey(nextSortState.key);
         setSortDir(nextSortState.direction);
-        onSortStateChange?.(nextSortState);
+        writePersistedSortState(sortPersistenceKey, nextSortState);
     };
 
     // ── Sorted items ───────────────────────────────────────────────────────────
     const sortedItems = useMemo(() => {
-        if (!columns || !effectiveSortKey || !effectiveSortDir) return items;
-        const col = columns.find((c) => c.key === effectiveSortKey);
+        if (!columns || !sortKey || !sortDir) return items;
+        const col = columns.find((c) => c.key === sortKey);
         if (!col?.sortable) return items;
 
         const comparator =
             typeof col.sortable === 'function'
                 ? col.sortable
-                : (a: T, b: T) => defaultComparator(a, b, effectiveSortKey);
+                : (a: T, b: T) => defaultComparator(a, b, sortKey);
 
         // Negate comparator for desc — avoids reverse() which breaks stable sort for equal keys.
-        const sign = effectiveSortDir === 'desc' ? -1 : 1;
+        const sign = sortDir === 'desc' ? -1 : 1;
         return [...items].sort((a, b) => sign * comparator(a, b));
-    }, [items, columns, effectiveSortKey, effectiveSortDir]);
+    }, [items, columns, sortKey, sortDir]);
 
     // ── Layout flags ───────────────────────────────────────────────────────────
     /**
@@ -467,7 +498,13 @@ export function DataTable<T>({
             return;
         }
         setCurrentPage(1);
-    }, [hasPagination, paginationPageSize, effectiveSortDir, effectiveSortKey]);
+    }, [hasPagination, paginationPageSize, sortDir, sortKey]);
+
+    useEffect(() => {
+        const persistedSort = readPersistedSortState(sortPersistenceKey);
+        setSortKey(persistedSort.key);
+        setSortDir(persistedSort.direction);
+    }, [sortPersistenceKey]);
 
     useEffect(() => {
         if (!hasPagination) return;
@@ -547,12 +584,12 @@ export function DataTable<T>({
                                 {columns.map((col) => {
                                     const align = col.align ?? 'left';
                                     const isSortable = Boolean(col.sortable);
-                                    const isActiveSortCol = effectiveSortKey === col.key;
-                                    const currentDir: SortDirection = isActiveSortCol ? effectiveSortDir : null;
+                                    const isActiveSortCol = sortKey === col.key;
+                                    const currentDir: SortDirection = isActiveSortCol ? sortDir : null;
                                     const SortIcon = SORT_ICON[currentDir ?? 'null'];
 
                                     const ariaSort = isSortable
-                                        ? (isActiveSortCol && effectiveSortDir === 'asc' ? 'ascending' : isActiveSortCol && effectiveSortDir === 'desc' ? 'descending' : 'none')
+                                        ? (isActiveSortCol && sortDir === 'asc' ? 'ascending' : isActiveSortCol && sortDir === 'desc' ? 'descending' : 'none')
                                         : undefined;
 
                                     return (
