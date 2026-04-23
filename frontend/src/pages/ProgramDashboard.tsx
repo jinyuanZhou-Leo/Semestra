@@ -423,9 +423,10 @@ const AllCoursesSection: React.FC<AllCoursesSectionProps> = ({
             fit: 'fill',
             minWidth: 220,
             sortable: true,
+            truncateCell: true,
             cell: (course) => (
-                <div className="flex flex-col">
-                    <Link to={`/courses/${course.id}`} className="font-medium hover:underline">
+                <div className="flex min-w-0 flex-col">
+                    <Link to={`/courses/${course.id}`} className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium hover:underline">
                         {course.name}
                     </Link>
                 </div>

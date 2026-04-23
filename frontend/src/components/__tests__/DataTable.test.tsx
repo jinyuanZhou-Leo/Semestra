@@ -63,18 +63,17 @@ describe('DataTable — render-props (legacy path)', () => {
         );
 
         const table = screen.getByRole('table');
-        const tableContainer = table.parentElement;
-        const minWidthWrapper = tableContainer?.parentElement;
+        const minWidthWrapper = table.parentElement;
         const shell = minWidthWrapper?.parentElement;
         const root = container.firstElementChild;
 
         expect(root).toHaveClass('w-full', 'min-w-0');
         expect(shell).toHaveClass('w-full', 'min-w-0', 'max-w-full', 'overflow-x-auto', 'overflow-y-hidden');
         expect(minWidthWrapper).toHaveClass('min-w-[500px]', 'sm:min-w-[560px]');
+        expect(container.querySelector('[data-slot="table-container"]')).toBeNull();
         expect(table).toHaveClass(
             'min-w-full', 'w-full', 'table-auto',
             '[&_td]:min-w-[6rem]', '[&_td]:max-w-[18rem]',
-            '[&_td]:overflow-hidden', '[&_td]:text-ellipsis', '[&_td]:whitespace-nowrap',
             '[&_th]:min-w-[6rem]', '[&_th]:max-w-[18rem]',
             '[&_th]:overflow-hidden', '[&_th]:text-ellipsis', '[&_th]:whitespace-nowrap',
         );
@@ -91,7 +90,7 @@ describe('DataTable — render-props (legacy path)', () => {
         );
 
         const table = screen.getByRole('table');
-        const minWidthWrapper = table.parentElement?.parentElement;
+        const minWidthWrapper = table.parentElement;
 
         expect(minWidthWrapper).toHaveClass('min-w-full');
         expect(minWidthWrapper).not.toHaveClass('min-w-[720px]');
@@ -206,7 +205,7 @@ describe('DataTable — columns API rendering', () => {
         }
     });
 
-    it('wraps custom cell content in an overflow-hidden container', () => {
+    it('wraps custom cell content without clipping focus rings', () => {
         render(
             <DataTable
                 {...BASE_PROPS}
@@ -224,8 +223,31 @@ describe('DataTable — columns API rendering', () => {
         );
 
         const custom = screen.getByTestId('custom-c1');
-        expect(custom.parentElement).toHaveClass('min-w-0', 'overflow-hidden');
-        expect(custom.closest('td')).toHaveClass('overflow-hidden');
+        expect(custom.parentElement).toHaveClass('min-w-0');
+        expect(custom.parentElement).not.toHaveClass('overflow-hidden');
+        expect(custom.closest('td')).not.toHaveClass('overflow-hidden');
+    });
+
+    it('truncates custom cell content when requested by the column', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={[COURSES[0]]}
+                getRowKey={(c) => c.id}
+                columns={[
+                    {
+                        key: 'name',
+                        label: 'Name',
+                        width: 120,
+                        truncateCell: true,
+                        cell: (item) => <a data-testid={`course-link-${item.id}`}>{item.name}</a>,
+                    },
+                ]}
+            />,
+        );
+
+        const link = screen.getByTestId('course-link-c1');
+        expect(link.parentElement).toHaveClass('min-w-0', 'overflow-hidden', 'text-ellipsis', 'whitespace-nowrap');
     });
 
     it('renders text returned from a custom cell with ellipsis handling', () => {

@@ -29,7 +29,6 @@ import {
     PaginationPrevious,
 } from '@/components/ui/pagination';
 import {
-    Table,
     TableBody,
     TableCell,
     TableHead,
@@ -116,6 +115,9 @@ export interface ColumnDef<T> {
      * (booleans → "Yes"/"No", null/undefined → empty).
      */
     cell?: (item: T, index: number) => ReactNode;
+
+    /** When true, clips custom JSX cell content with a single-line ellipsis. */
+    truncateCell?: boolean;
 
     // ── Style overrides ───────────────────────────────────────────────────────
 
@@ -485,9 +487,10 @@ export function DataTable<T>({
                 minWidthClassName={minWidthClassName}
                 className={cn(pagination && 'rounded-none border-0', shellClassName)}
             >
-                <Table
+                <table
+                    data-slot="table"
                     className={cn(
-                        'min-w-full w-full',
+                        'caption-bottom text-sm min-w-full w-full',
                         // Fixed layout when any column controls its own width; auto otherwise.
                         useFixedLayout ? 'table-fixed' : [
                             'table-auto',
@@ -542,7 +545,6 @@ export function DataTable<T>({
                                     return (
                                         <TableHead
                                             key={col.key}
-                                            role={isSortable ? 'button' : undefined}
                                             tabIndex={isSortable ? 0 : undefined}
                                             aria-sort={ariaSort}
                                             className={cn(
@@ -621,7 +623,7 @@ export function DataTable<T>({
                                                 className={cn(ALIGN_CLASS[align], extraClass)}
                                             >
                                                 {col.cell ? (
-                                                    <div className="min-w-0">
+                                                    <div className={cn('min-w-0', col.truncateCell && 'overflow-hidden text-ellipsis whitespace-nowrap')}>
                                                         {(() => {
                                                             const cellContent = col.cell(item, absoluteIndex);
                                                             if (typeof cellContent === 'string' || typeof cellContent === 'number') {
@@ -643,7 +645,7 @@ export function DataTable<T>({
                             renderRow?.(item, pageStartIndex + index),
                         )}
                     </TableBody>
-                </Table>
+                </table>
             </TableShell>
         </div>
     );
