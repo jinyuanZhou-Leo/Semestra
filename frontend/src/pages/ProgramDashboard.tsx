@@ -120,6 +120,7 @@ type VisibleSemester = Semester & { courses?: Course[] };
 type SemestersSectionProps = {
     semesters: VisibleSemester[];
     programId: string;
+    hideGpa: boolean;
     onRefresh: () => Promise<void>;
     showAlert: ShowAlert;
 };
@@ -127,6 +128,7 @@ type SemestersSectionProps = {
 const SemestersSection: React.FC<SemestersSectionProps> = ({
     semesters,
     programId,
+    hideGpa,
     onRefresh,
     showAlert,
 }) => {
@@ -178,16 +180,18 @@ const SemestersSection: React.FC<SemestersSectionProps> = ({
                                     <div className="mt-1 grid grid-cols-2 gap-3">
                                         <div>
                                             <p className="text-xs tracking-wider text-muted-foreground font-medium">GPA</p>
-                                            <p className="text-base font-semibold">
-                                                <AnimatedNumber
-                                                    value={semester.average_scaled}
-                                                    format={(val) => val.toFixed(2)}
-                                                />
+                                            <p className={`text-base font-semibold ${!hideGpa && (semester.average_scaled >= 3.0 ? 'text-emerald-600' : 'text-amber-600')}`}>
+                                                {hideGpa ? '****' : (
+                                                    <AnimatedNumber
+                                                        value={semester.average_scaled}
+                                                        format={(val) => val.toFixed(2)}
+                                                    />
+                                                )}
                                             </p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-xs tracking-wider text-muted-foreground font-medium">Average</p>
-                                            <p className="text-base font-semibold">{formatGpaPercentage(semester.average_percentage)}</p>
+                                            <p className="text-base font-semibold">{hideGpa ? '****' : formatGpaPercentage(semester.average_percentage)}</p>
                                         </div>
                                     </div>
                                     <div className="mt-3 flex items-center justify-between border-t pt-3 text-sm text-muted-foreground">
@@ -861,7 +865,7 @@ const ProgramDashboardContent: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-2">
                             {program && (
-                                <Button variant="outline" asChild>
+                                <Button variant="outline" aria-label="Program Settings" asChild>
                                     <Link to={`/programs/${program.id}/settings`}>
                                         <Settings />
                                     </Link>
@@ -924,9 +928,6 @@ const ProgramDashboardContent: React.FC = () => {
                     <>
                         {/* Stats Section */}
                         <section>
-                            <h2 className="text-lg font-semibold tracking-tight mb-4 flex items-center gap-2">
-                                Overview
-                            </h2>
                                 <div className="md:hidden relative rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
                                     <Button
                                         onClick={() => handleUpdateProgram({ hide_gpa: !program.hide_gpa })}
@@ -1017,6 +1018,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                     variant="ghost"
                                                     size="sm"
                                                     className="-mr-1 -mt-1 h-7 w-7 p-0 text-muted-foreground"
+                                                    aria-label={program.hide_gpa ? 'Show GPA' : 'Hide GPA'}
                                                 >
                                                     {program.hide_gpa ? (
                                                         <EyeOff className="h-3.5 w-3.5" />
@@ -1055,16 +1057,37 @@ const ProgramDashboardContent: React.FC = () => {
                                             <BookOpen className="h-4 w-4 text-muted-foreground" />
                                         </CardHeader>
                                         <CardContent className="flex min-h-12 flex-col justify-end gap-2 pt-0">
-                                            <div className="text-[1.5rem] font-semibold tracking-tight leading-none">
-                                                <AnimatedNumber
-                                                    value={totalCredits}
-                                                    format={(val) => val.toFixed(1)} // Format cleaner
-                                                    animateOnMount
-                                                />
-                                                <span className="mx-1 text-base font-normal text-muted-foreground">/</span>
-                                                <span className="text-base font-normal text-muted-foreground">{program.grad_requirement_credits}</span>
-                                            </div>
-                                            <Progress value={creditsProgressPercent} />
+                                            {program.grad_requirement_credits > 0 ? (
+                                                <>
+                                                    <div className="text-[1.5rem] font-semibold tracking-tight leading-none">
+                                                        <AnimatedNumber
+                                                            value={totalCredits}
+                                                            format={(val) => val.toFixed(1)}
+                                                            animateOnMount
+                                                        />
+                                                        <span className="mx-1 text-base font-normal text-muted-foreground">/</span>
+                                                        <span className="text-base font-normal text-muted-foreground">{program.grad_requirement_credits}</span>
+                                                    </div>
+                                                    <Progress value={creditsProgressPercent} />
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="text-[1.5rem] font-semibold tracking-tight leading-none">
+                                                        <AnimatedNumber
+                                                            value={totalCredits}
+                                                            format={(val) => val.toFixed(1)}
+                                                            animateOnMount
+                                                        />
+                                                        <span className="ml-1 text-base font-normal text-muted-foreground">credits</span>
+                                                    </div>
+                                                    <Link
+                                                        to={`/programs/${program.id}/settings`}
+                                                        className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+                                                    >
+                                                        Set graduation target →
+                                                    </Link>
+                                                </>
+                                            )}
                                         </CardContent>
                                     </Card>
                                 </div>
@@ -1085,6 +1108,7 @@ const ProgramDashboardContent: React.FC = () => {
                             <SemestersSection
                                 semesters={visibleSemesters}
                                 programId={program.id}
+                                hideGpa={program.hide_gpa ?? false}
                                 onRefresh={refreshDashboardData}
                                 showAlert={showAlert}
                             />

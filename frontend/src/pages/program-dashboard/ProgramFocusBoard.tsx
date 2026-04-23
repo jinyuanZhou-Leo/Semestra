@@ -84,6 +84,12 @@ import {
   Pin,
   Plus,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 const GRID_BREAKPOINTS = { lg: 768 } as const;
 const BOARD_METRICS = {
@@ -453,8 +459,17 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [candidateSort, setCandidateSort] = useState<CandidateSortMode>('chronology');
   const [pendingRemove, setPendingRemove] = useState<{ entityType: ProgramHomeEntityType; entityId: string; title: string } | null>(null);
+  const [localSortMode, setLocalSortMode] = useState<ProgramHomeSortMode>(() => settings.sort_mode);
   const [interactiveLayouts, setInteractiveLayouts] = useState<ResponsiveStripLayouts | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  // When a drag-and-drop commit sets sort_mode to 'manual' on the server,
+  // mirror that into local state so the board stays in manual mode.
+  useEffect(() => {
+    if (settings.sort_mode === 'manual') {
+      setLocalSortMode('manual');
+    }
+  }, [settings.sort_mode]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -518,8 +533,8 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
     [programCourses, semesters, settings],
   );
   const visibleEntities = useMemo(
-    () => sortProgramHomeEntities(resolvedEntities, settings.sort_mode),
-    [resolvedEntities, settings.sort_mode],
+    () => sortProgramHomeEntities(resolvedEntities, localSortMode),
+    [resolvedEntities, localSortMode],
   );
 
   const isMobileLayout = viewportState.isMobile;
@@ -590,12 +605,12 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   }, [pinnedKeys, programCourses, semesters]);
 
   const desktopStrip = useMemo(
-    () => buildStripLayouts(visibleEntities, 'desktop', settings.sort_mode === 'manual'),
-    [settings.sort_mode, visibleEntities],
+    () => buildStripLayouts(visibleEntities, 'desktop', localSortMode === 'manual'),
+    [localSortMode, visibleEntities],
   );
   const mobileStrip = useMemo(
-    () => buildStripLayouts(visibleEntities, 'mobile', settings.sort_mode === 'manual'),
-    [settings.sort_mode, visibleEntities],
+    () => buildStripLayouts(visibleEntities, 'mobile', localSortMode === 'manual'),
+    [localSortMode, visibleEntities],
   );
 
   const layouts = useMemo(
@@ -853,31 +868,42 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
             <h2 className="text-lg font-semibold tracking-tight">Focus Board</h2>
           </div>
         </div>
-        <div className="flex flex-wrap items-stretch gap-2 sm:flex-row sm:items-center">
-          <Button type="button" size="icon" variant={isEditing ? 'default' : 'outline'} onClick={() => {
-            blurActiveElement();
-            setIsEditing((current) => !current);
-          }}>
-            {isEditing ? <Check /> : <Pencil />}
-            <span className="sr-only">{isEditing ? 'Done editing board' : 'Edit board'}</span>
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                size="icon"
-                variant="outline"
-                title={`Sort: ${sortLabelMap[settings.sort_mode]}`}
-              >
-                <ArrowUpDown />
-                <span className="sr-only">Sort Focus Board</span>
-              </Button>
-            </DropdownMenuTrigger>
+        <TooltipProvider>
+          <div className="flex flex-wrap items-stretch gap-2 sm:flex-row sm:items-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" size="icon" variant={isEditing ? 'default' : 'outline'} onClick={() => {
+                  blurActiveElement();
+                  setIsEditing((current) => !current);
+                }}>
+                  {isEditing ? <Check /> : <Pencil />}
+                  <span className="sr-only">{isEditing ? 'Done editing board' : 'Edit board'}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>{isEditing ? 'Done editing' : 'Edit board'}</TooltipContent>
+            </Tooltip>
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      aria-label={`Sort Focus Board: ${sortLabelMap[localSortMode]}`}
+                    >
+                      <ArrowUpDown />
+                      <span className="sr-only">Sort Focus Board</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={6}>Sort: {sortLabelMap[localSortMode]}</TooltipContent>
+              </Tooltip>
             <DropdownMenuContent align="end">
               <DropdownMenuRadioGroup
-                value={settings.sort_mode}
-                onValueChange={async (value) => {
-                  await onCommit({ ...settings, sort_mode: value as ProgramHomeSortMode });
+                value={localSortMode}
+                onValueChange={(value) => {
+                  setLocalSortMode(value as ProgramHomeSortMode);
                 }}
               >
                 {Object.entries(sortLabelMap).map(([value, label]) => (
@@ -887,15 +913,16 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
                 ))}
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
-          </DropdownMenu>
-          <Button type="button" onClick={() => {
-            blurActiveElement();
-            setIsAddOpen(true);
-          }} disabled={!hasAvailableCandidates} className="flex-1 sm:flex-none">
-            <Plus data-icon="inline-start" />
-            Add to Focus Board
-          </Button>
-        </div>
+            </DropdownMenu>
+            <Button type="button" onClick={() => {
+              blurActiveElement();
+              setIsAddOpen(true);
+            }} disabled={!hasAvailableCandidates} className="flex-1 sm:flex-none">
+              <Plus data-icon="inline-start" />
+              Add to Focus Board
+            </Button>
+          </div>
+        </TooltipProvider>
       </div>
 
       <div
@@ -1146,6 +1173,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </section>
   );
 };
