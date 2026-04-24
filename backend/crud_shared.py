@@ -25,6 +25,7 @@ from color_utils import (
 )
 
 import models
+import logic
 import plugin_registry
 import schemas
 
@@ -379,7 +380,9 @@ def update_user(db: Session, user_id: str, user_update: schemas.UserUpdate):
     if "nickname" in update_data:
         db_user.nickname = update_data["nickname"]
 
-    merged_settings = get_user_setting_dict(db_user)
+    previous_settings = get_user_setting_dict(db_user)
+    previous_gpa_table = previous_settings.get("gpa_scaling_table")
+    merged_settings = dict(previous_settings)
     has_settings_update = False
 
     if "user_setting" in update_data and update_data["user_setting"] is not None:
@@ -401,6 +404,7 @@ def update_user(db: Session, user_id: str, user_update: schemas.UserUpdate):
         has_settings_update = True
 
     merged_settings = normalize_user_setting_dict(merged_settings)
+    gpa_table_changed = has_settings_update and previous_gpa_table != merged_settings.get("gpa_scaling_table")
 
     if has_settings_update or not db_user.user_setting:
         db_user.user_setting = json.dumps(merged_settings)
@@ -408,4 +412,10 @@ def update_user(db: Session, user_id: str, user_update: schemas.UserUpdate):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    if gpa_table_changed:
+        programs = db.query(models.Program).filter(models.Program.owner_id == user_id).all()
+        for program in programs:
+            if parse_user_setting(program.gpa_scaling_table):
+                continue
+            logic.recalculate_all_stats(program, db)
     return db_user

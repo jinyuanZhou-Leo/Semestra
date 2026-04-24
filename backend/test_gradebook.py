@@ -20,6 +20,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import gradebook
+import crud
 import logic
 import models
 import schemas
@@ -59,6 +60,8 @@ class GradebookServiceTests(unittest.TestCase):
         )
         self.db.add(course)
         self.db.commit()
+        self.user_id = user.id
+        self.program_id = program.id
         self.course_id = course.id
 
     def tearDown(self) -> None:
@@ -304,6 +307,49 @@ class GradebookServiceTests(unittest.TestCase):
 
         self.assertEqual(logic.calculate_gpa(89.5, scaling_table), 3.7)
         self.assertEqual(logic.calculate_gpa(84.5, scaling_table), 0.0)
+
+    def test_user_gpa_table_update_recomputes_inherited_course_grades(self) -> None:
+        user = self.db.query(models.User).filter(models.User.id == self.user_id).one()
+        user.user_setting = json.dumps({
+            "gpa_scaling_table": json.dumps({
+                "90-100": 4.0,
+                "85-89": 3.7,
+                "80-84": 3.0,
+            }),
+        })
+        course = self.db.query(models.Course).filter(models.Course.id == self.course_id).one()
+        course.grade_percentage = 85
+        self.db.add_all([user, course])
+        self.db.commit()
+
+        logic.update_course_stats(course, self.db)
+        self.assertEqual(course.grade_scaled, 3.7)
+        unassigned_course = models.Course(
+            name="Unassigned MIE200",
+            category="MIE",
+            credits=0.5,
+            program_id=self.program_id,
+            grade_percentage=85,
+        )
+        self.db.add(unassigned_course)
+        self.db.commit()
+        logic.update_course_stats(unassigned_course, self.db)
+        self.assertEqual(unassigned_course.grade_scaled, 3.7)
+
+        crud.update_user(
+            self.db,
+            self.user_id,
+            schemas.UserUpdate(gpa_scaling_table=json.dumps({
+                "90-100": 4.0,
+                "85-89": 4.0,
+                "80-84": 3.7,
+            })),
+        )
+
+        self.db.refresh(course)
+        self.db.refresh(unassigned_course)
+        self.assertEqual(course.grade_scaled, 4.0)
+        self.assertEqual(unassigned_course.grade_scaled, 4.0)
 
     def test_gradebook_mutations_do_not_overwrite_course_grade_fields(self) -> None:
         course = self.db.query(models.Course).filter(models.Course.id == self.course_id).first()

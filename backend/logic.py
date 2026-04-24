@@ -200,7 +200,7 @@ def update_course_stats(course: models.Course, db: Session, *, commit: bool = Tr
     if semester:
         update_semester_stats(semester, db, commit=commit)
 
-def update_semester_stats(semester: models.Semester, db: Session, *, commit: bool = True):
+def update_semester_stats(semester: models.Semester, db: Session, *, commit: bool = True, propagate: bool = True):
     """
     Updates average stats for a semester.
     """
@@ -240,7 +240,7 @@ def update_semester_stats(semester: models.Semester, db: Session, *, commit: boo
     else:
         db.flush()
     
-    if semester.program:
+    if propagate and semester.program:
         update_program_stats(semester.program, db, commit=commit)
 
 def update_program_stats(program: models.Program, db: Session, *, commit: bool = True):
@@ -292,23 +292,18 @@ def recalculate_all_stats(program: models.Program, db: Session):
     """
     Full recalculation, useful when Program settings change.
     """
-    # 1. Update all courses (they might depend on Program scaling table)
+    table = get_scaling_table(program)
+    for course in program.courses:
+        course.grade_scaled = calculate_gpa(course.grade_percentage, table)
+        db.add(course)
+    db.flush()
+
     for semester in program.semesters:
-        for course in semester.courses:
-            # We assume update_course_stats triggers up-chain updates, 
-            # but that might be inefficient for bulk updates.
-            # More efficient: Calculate all courses, commit, then calculate semesters, then program.
-            
-            table = get_scaling_table(program)
-            course.grade_scaled = calculate_gpa(course.grade_percentage, table)
-            db.add(course)
-        
-        # After courses updated, update semester
-        db.commit() # Save courses first
-        update_semester_stats(semester, db) # This effectively calculates semester average
-        
-    # Program stats updated by last semester update, or we can explicit call
-    update_program_stats(program, db)
+        update_semester_stats(semester, db, commit=False, propagate=False)
+
+    update_program_stats(program, db, commit=False)
+    db.commit()
+    db.refresh(program)
 
 def recalculate_semester_full(semester: models.Semester, db: Session):
     """
