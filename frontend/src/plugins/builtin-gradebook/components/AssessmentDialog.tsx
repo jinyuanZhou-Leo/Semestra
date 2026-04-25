@@ -47,7 +47,7 @@ import type {
     LmsAssignmentSummary,
 } from '@/services/api';
 
-import { formatGradebookDateInput } from '../shared';
+import { formatGradebookDateInput, parseDraftDate } from '../shared';
 
 export type AssessmentDraft = {
     id: string | null;
@@ -74,12 +74,6 @@ type AssessmentDialogProps = {
     hasLmsLink: boolean;
     isSaving: boolean;
     onSave: () => Promise<void>;
-};
-
-const parseDraftDate = (value: string): Date | undefined => {
-    if (!value) return undefined;
-    const parsed = parseISO(value);
-    return isValid(parsed) ? parsed : undefined;
 };
 
 const formatLmsDueDate = (value: string | null | undefined) => {

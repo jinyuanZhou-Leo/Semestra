@@ -10,7 +10,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { format, isValid, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { ArrowRightLeft, CalendarDays, FlaskConical, GraduationCap, Pencil, Percent, Plus, Sparkles, Target, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -78,6 +78,7 @@ import {
     formatGradebookDate,
     formatGradebookDateInput,
     formatGradebookGpaPercentage,
+    parseDraftDate,
     formatPercent,
     getApiErrorMessage,
     getCategoryBadgeClassName,
@@ -113,12 +114,6 @@ const parseOptionalNumber = (value: string): number | null => {
     if (!value.trim()) return null;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
-};
-
-const parseDraftDate = (value: string): Date | undefined => {
-    if (!value) return undefined;
-    const parsed = parseISO(value);
-    return isValid(parsed) ? parsed : undefined;
 };
 
 const isBoundedPercentageInput = (value: string) => {
@@ -182,6 +177,7 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const [scoreDrafts, setScoreDrafts] = React.useState<Record<string, string>>({});
     const [weightDrafts, setWeightDrafts] = React.useState<Record<string, string>>({});
     const [dueDateDrafts, setDueDateDrafts] = React.useState<Record<string, string>>({});
+    const [editingScoreAssessmentId, setEditingScoreAssessmentId] = React.useState<string | null>(null);
     const [editingWeightAssessmentId, setEditingWeightAssessmentId] = React.useState<string | null>(null);
     const [editingDueDateAssessmentId, setEditingDueDateAssessmentId] = React.useState<string | null>(null);
     const [planModeIntroOpen, setPlanModeIntroOpen] = React.useState(false);
@@ -237,10 +233,12 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             }
             return formatTargetDraftValue(gradebook, targetInputMode);
         });
-        setScoreDrafts(Object.fromEntries(
+        setScoreDrafts((current) => Object.fromEntries(
             gradebook.assessments.map((assessment) => [
                 assessment.id,
-                assessment.score === null || assessment.score === undefined ? '' : String(assessment.score),
+                assessment.id === editingScoreAssessmentId
+                    ? (current[assessment.id] ?? '')
+                    : (assessment.score === null || assessment.score === undefined ? '' : String(assessment.score)),
             ]),
         ));
         setWeightDrafts(Object.fromEntries(
@@ -255,7 +253,7 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 formatGradebookDateInput(assessment.due_date),
             ]),
         ));
-    }, [gradebook, targetInputMode]);
+    }, [gradebook, targetInputMode, editingScoreAssessmentId]);
 
     React.useEffect(() => {
         if (!gradebook) {
@@ -366,11 +364,11 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 toast.error('Select at least one LMS assignment to add.');
                 return;
             }
+            const selectedAssignments = (lmsAssignmentsQuery.data?.items ?? [])
+                .filter((assignment) => assessmentDraft.selected_lms_assignment_ids.includes(assignment.external_id));
             setIsMutating(true);
+            let latestGradebook: CourseGradebook | null = null;
             try {
-                const selectedAssignments = (lmsAssignmentsQuery.data?.items ?? [])
-                    .filter((assignment) => assessmentDraft.selected_lms_assignment_ids.includes(assignment.external_id));
-                let latestGradebook: CourseGradebook | null = null;
                 for (const assignment of selectedAssignments) {
                     latestGradebook = await api.createCourseGradebookAssessment(courseId, {
                         category_id: assessmentDraft.category_id,
@@ -382,28 +380,24 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                         points_possible: null,
                     });
                 }
-                if (!latestGradebook) {
-                    toast.error('No LMS assignments were selected.');
-                    return;
-                }
-                await gradebookMutation.mutateAsync(() => Promise.resolve(latestGradebook));
-                const nextSummary = buildComputedGradebookSummary(latestGradebook);
-                if (nextSummary.current_real_percentage !== null && nextSummary.current_real_gpa !== null) {
-                    updateCourse({
-                        grade_percentage: nextSummary.current_real_percentage,
-                        grade_scaled: nextSummary.current_real_gpa,
-                    });
-                }
-                publishGradebookAssessmentCalendarRefresh(courseId, course?.semester_id);
-                toast.success(`Added ${selectedAssignments.length} LMS assessment${selectedAssignments.length === 1 ? '' : 's'} to Gradebook.`);
-                setAssessmentDialogOpen(false);
-                setAssessmentDraft(null);
             } catch (error: unknown) {
                 console.error('Failed to add LMS assignments to gradebook', error);
                 toast.error(getApiErrorMessage(error));
-            } finally {
                 setIsMutating(false);
+                return;
             }
+            if (!latestGradebook) {
+                toast.error('No LMS assignments were selected.');
+                setIsMutating(false);
+                return;
+            }
+            // commitGradebook handles cache update, updateCourse, error toast, and isMutating
+            const success = await commitGradebook(Promise.resolve(latestGradebook));
+            if (!success) return;
+            publishGradebookAssessmentCalendarRefresh(courseId, course?.semester_id);
+            toast.success(`Added ${selectedAssignments.length} LMS assessment${selectedAssignments.length === 1 ? '' : 's'} to Gradebook.`);
+            setAssessmentDialogOpen(false);
+            setAssessmentDraft(null);
             return;
         }
 
@@ -775,8 +769,14 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 }
                                 setScoreDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
                             }}
+                            onFocus={() => {
+                                if (!planMode) {
+                                    setEditingScoreAssessmentId(assessment.id);
+                                }
+                            }}
                             onBlur={() => {
                                 if (!planMode) {
+                                    setEditingScoreAssessmentId(null);
                                     void handleSaveScore(assessment);
                                 }
                             }}
@@ -1347,11 +1347,25 @@ const SemesterGradebookTab: React.FC<TabProps> = ({ semesterId }) => {
             toast.error(`Enter a ${planModeState.targetInputMode === 'gpa' ? 'GPA' : 'percentage'} target before running Auto-fill.`);
             return;
         }
+        const includedCourses = courses.filter(
+            (course) => course.include_in_gpa !== false && Number(course.credits) > 0,
+        );
+        const gradedCourses = includedCourses.filter((course) => Number(course.grade_percentage || 0) > 0);
+        const ungradedCourses = includedCourses.filter((course) => Number(course.grade_percentage || 0) <= 0);
+        const totalCredits = includedCourses.reduce((sum, c) => sum + Number(c.credits), 0);
+        const ungradedCredits = ungradedCourses.reduce((sum, c) => sum + Number(c.credits), 0);
+        if (ungradedCredits <= 0) return;
+        const gradedContribution = gradedCourses.reduce(
+            (sum, c) => sum + Number(c.grade_percentage) * Number(c.credits),
+            0,
+        );
+        const requiredPercentage = Math.max(
+            0,
+            Math.min(100, (targetPercentage * totalCredits - gradedContribution) / ungradedCredits),
+        );
         const nextDrafts = { ...planModeState.whatIfDrafts };
-        courses.forEach((course) => {
-            if (course.include_in_gpa === false || Number(course.credits) <= 0) return;
-            if (Number(course.grade_percentage || 0) > 0) return;
-            nextDrafts[course.id] = String(Math.max(0, Math.min(100, targetPercentage)));
+        ungradedCourses.forEach((course) => {
+            nextDrafts[course.id] = String(requiredPercentage);
         });
         updatePlanModeState({ whatIfDrafts: nextDrafts });
     };

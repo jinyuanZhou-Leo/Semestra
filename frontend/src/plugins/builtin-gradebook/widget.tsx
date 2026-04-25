@@ -8,10 +8,12 @@
 
 
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { BookOpen, GraduationCap, Percent } from 'lucide-react';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
-import api, { type Course } from '@/services/api';
+import api from '@/services/api';
+import { courseKeys } from '@/services/queryKeys';
 import type { WidgetDefinition, WidgetProps } from '@/plugin-system';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSemesterData } from '@/contexts/SemesterDataContext';
@@ -47,40 +49,12 @@ const SummaryTile: React.FC<SummaryTileProps> = ({ label, icon, value, className
 );
 
 const CourseGradebookSummaryWidget: React.FC<Pick<WidgetProps, 'courseId'>> = ({ courseId }) => {
-    const [course, setCourse] = React.useState<Course | null>(null);
-    const [isLoading, setIsLoading] = React.useState(true);
-
-    React.useEffect(() => {
-        if (!courseId) {
-            setCourse(null);
-            setIsLoading(false);
-            return;
-        }
-        let cancelled = false;
-
-        setIsLoading(true);
-        api.getCourse(courseId)
-            .then((courseResponse) => {
-                if (!cancelled) {
-                    setCourse(courseResponse);
-                }
-            })
-            .catch((error) => {
-                if (!cancelled) {
-                    console.error('Failed to load course gradebook summary widget', error);
-                    setCourse(null);
-                }
-            })
-            .finally(() => {
-                if (!cancelled) {
-                    setIsLoading(false);
-                }
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [courseId]);
+    const courseQuery = useQuery({
+        queryKey: courseId ? courseKeys.detail(courseId) : ['courses', 'detail', 'disabled'],
+        queryFn: () => api.getCourse(courseId!),
+        enabled: Boolean(courseId),
+        staleTime: 60_000,
+    });
 
     if (!courseId) {
         return (
@@ -93,7 +67,7 @@ const CourseGradebookSummaryWidget: React.FC<Pick<WidgetProps, 'courseId'>> = ({
         );
     }
 
-    if (isLoading) {
+    if (courseQuery.isLoading) {
         return (
             <div className="flex h-full min-h-0 flex-col gap-1.5 p-2.5">
                 <Skeleton className="min-h-0 flex-1 rounded-2xl" />
@@ -102,6 +76,8 @@ const CourseGradebookSummaryWidget: React.FC<Pick<WidgetProps, 'courseId'>> = ({
             </div>
         );
     }
+
+    const course = courseQuery.data ?? null;
 
     if (!course) {
         return (

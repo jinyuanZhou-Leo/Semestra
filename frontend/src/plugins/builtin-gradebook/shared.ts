@@ -656,6 +656,12 @@ export const formatGradebookDateInput = (value: string | null | undefined): stri
     return value.slice(0, 10);
 };
 
+export const parseDraftDate = (value: string): Date | undefined => {
+    if (!value) return undefined;
+    const parsed = parseISO(value);
+    return isValid(parsed) ? parsed : undefined;
+};
+
 export const getCategoryBadgeClassName = (colorToken: string | null | undefined): string => {
     return CATEGORY_COLOR_OPTIONS.find((option) => option.value === colorToken)?.badgeClassName
         ?? DEFAULT_CATEGORY_COLOR_OPTION.badgeClassName;

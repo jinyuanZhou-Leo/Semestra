@@ -47,6 +47,7 @@ import {
     CATEGORY_COLOR_OPTIONS,
     DEFAULT_GRADEBOOK_DEFAULTS_SETTINGS,
     getApiErrorMessage,
+    isHexCategoryColor,
     normalizeGradebookDefaultsSettings,
     type GradebookDefaultCategoryTemplate,
 } from './shared';
@@ -65,13 +66,11 @@ const CATEGORY_COLOR_PRESETS: readonly ColorPickerPreset[] = [
 
 const DEFAULT_CATEGORY_COLOR = CATEGORY_COLOR_PRESETS[0].value;
 
-const IS_HEX = (s: string) => /^#[0-9a-fA-F]{6}$/.test(s);
-
 const getCategorySwatchStyle = (
     colorToken: string | null | undefined,
 ): { className?: string; style?: React.CSSProperties } => {
-    if (colorToken && IS_HEX(colorToken)) {
-        return { style: { backgroundColor: colorToken } };
+    if (isHexCategoryColor(colorToken)) {
+        return { style: { backgroundColor: colorToken as string } };
     }
     const named = CATEGORY_COLOR_OPTIONS.find((o) => o.value === colorToken);
     return { className: named?.swatchClassName ?? CATEGORY_COLOR_OPTIONS[CATEGORY_COLOR_OPTIONS.length - 1].swatchClassName };
@@ -190,7 +189,7 @@ const CategoryFormDialog: React.FC<CategoryFormDialogProps> = ({
                 const legacyHex = CATEGORY_COLOR_PRESETS.find(
                     (p) => p.name.toLowerCase() === initialData.color_token?.toLowerCase()
                 )?.value;
-                setColor(IS_HEX(initialData.color_token ?? '') ? initialData.color_token! : (legacyHex ?? DEFAULT_CATEGORY_COLOR));
+                setColor(isHexCategoryColor(initialData.color_token) ? initialData.color_token! : (legacyHex ?? DEFAULT_CATEGORY_COLOR));
             } else {
                 setName('');
                 setColor(DEFAULT_CATEGORY_COLOR);

@@ -6,11 +6,21 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
+import React from 'react';
 import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import api, { type Course } from '@/services/api';
 import * as semesterDataContext from '@/contexts/SemesterDataContext';
 import { BuiltinGradebookSummaryWidgetDefinition } from './widget';
+
+const createWrapper = () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    return Wrapper;
+};
 
 vi.mock('@/contexts/SemesterDataContext', () => ({
     useSemesterData: vi.fn(),
@@ -71,6 +81,7 @@ describe('BuiltinGradebookSummaryWidget', () => {
                 settings={{}}
                 updateSettings={vi.fn()}
             />,
+            { wrapper: createWrapper() },
         );
 
         expect(await screen.findByText('Credits')).toBeInTheDocument();
