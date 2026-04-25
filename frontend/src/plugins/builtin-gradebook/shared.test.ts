@@ -9,6 +9,8 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildComputedGradebookSummary,
+    buildSemesterGradebookPlanResult,
+    buildSemesterGradebookSummary,
     buildPlanModeResult,
     buildSuggestedWhatIfScores,
     calculateGradebookGpa,
@@ -18,7 +20,7 @@ import {
     hasCompleteGradebookWeight,
     resolveTargetPercentageForGpa,
 } from './shared';
-import type { CourseGradebook } from '@/services/api';
+import type { Course, CourseGradebook } from '@/services/api';
 
 const fixture: CourseGradebook = {
     course_id: 'course-1',
@@ -247,4 +249,57 @@ describe('builtin-gradebook shared helpers', () => {
             color: 'color-mix(in srgb, #facc15 82%, var(--foreground))',
         });
     });
+
+    it('computes semester GPA from included course credits only', () => {
+        const courses = [
+            buildSemesterCourse({ id: 'course-1', credits: 3, grade_scaled: 4, grade_percentage: 90, include_in_gpa: true }),
+            buildSemesterCourse({ id: 'course-2', credits: 1, grade_scaled: 3, grade_percentage: 80, include_in_gpa: true }),
+            buildSemesterCourse({ id: 'course-3', credits: 5, grade_scaled: 0, grade_percentage: 50, include_in_gpa: false }),
+        ];
+
+        const summary = buildSemesterGradebookSummary(courses);
+
+        expect(summary.included_credits).toBe(4);
+        expect(summary.included_course_count).toBe(2);
+        expect(summary.current_percentage).toBe(87.5);
+        expect(summary.current_gpa).toBe(3.75);
+    });
+
+    it('projects semester what-if results from course final percentages', () => {
+        const courses = [
+            buildSemesterCourse({ id: 'course-1', credits: 3, grade_scaled: 4, grade_percentage: 90, include_in_gpa: true }),
+            buildSemesterCourse({ id: 'course-2', credits: 1, grade_scaled: 3, grade_percentage: 80, include_in_gpa: true }),
+            buildSemesterCourse({ id: 'course-3', credits: 1, grade_scaled: 4, grade_percentage: 95, include_in_gpa: false }),
+        ];
+
+        const result = buildSemesterGradebookPlanResult(courses, {
+            'course-2': 100,
+        }, fixture.scaling_table, 90);
+
+        expect(result.projected_percentage).toBe(92.5);
+        expect(result.projected_gpa).toBe(4);
+        expect(result.target_percentage).toBe(90);
+        expect(result.is_feasible).toBe(true);
+    });
+});
+
+const buildSemesterCourse = (overrides: Partial<Course>): Course => ({
+    id: overrides.id ?? 'course-1',
+    name: overrides.name ?? 'Course',
+    alias: overrides.alias,
+    category: overrides.category,
+    credits: overrides.credits ?? 0,
+    grade_scaled: overrides.grade_scaled ?? 0,
+    grade_percentage: overrides.grade_percentage ?? 0,
+    program_id: overrides.program_id ?? 'program-1',
+    semester_id: overrides.semester_id ?? 'semester-1',
+    include_in_gpa: overrides.include_in_gpa ?? true,
+    runtime: overrides.runtime ?? {
+        runtime_tabs: [],
+        tab_catalog_items: [],
+        widget_catalog_items: [],
+        enabled_plugin_ids: [],
+        enabled_plugins: [],
+        available_widget_types: [],
+    },
 });

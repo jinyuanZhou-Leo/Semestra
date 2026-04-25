@@ -17,7 +17,6 @@ import { getCourseInitialData } from './entityContextInitialData';
 export type CourseWithDetails = Course & {
     widgets?: Widget[];
     tabs?: Tab[];
-    hide_gpa?: boolean;
 };
 
 interface CourseDataContextType {

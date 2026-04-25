@@ -198,7 +198,6 @@ def _export_course(
         grade_percentage=course.grade_percentage,
         grade_scaled=course.grade_scaled,
         include_in_gpa=course.include_in_gpa,
-        hide_gpa=course.hide_gpa,
         widgets=[_export_widget(widget) for widget in course.widgets],
         tabs=[_export_tab(tab) for tab in course.tabs],
         plugin_activations=[
@@ -597,7 +596,6 @@ def _import_course_export(
             grade_percentage=course_data.grade_percentage,
             grade_scaled=course_data.grade_scaled,
             include_in_gpa=course_data.include_in_gpa,
-            hide_gpa=course_data.hide_gpa,
         ),
         program_id=program_id,
         semester_id=semester_id,

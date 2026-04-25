@@ -478,9 +478,7 @@ const AllCoursesSection: React.FC<AllCoursesSectionProps> = ({
             width: 108,
             align: 'right',
             sortable: true,
-            cell: (course) => (
-                course.hide_gpa ? '****' : formatGpaPercentage(course.grade_percentage)
-            ),
+            cell: (course) => formatGpaPercentage(course.grade_percentage),
         },
         {
             key: 'grade_scaled',
@@ -489,14 +487,12 @@ const AllCoursesSection: React.FC<AllCoursesSectionProps> = ({
             align: 'right',
             sortable: true,
             cell: (course) => (
-                course.hide_gpa ? '****' : (
-                    <span className={course.grade_scaled >= 3.0 ? 'font-medium text-emerald-600' : 'font-medium text-amber-600'}>
-                        <AnimatedNumber
-                            value={course.grade_scaled}
-                            format={(value) => value.toFixed(2)}
-                        />
-                    </span>
-                )
+                <span className={course.grade_scaled >= 3.0 ? 'font-medium text-emerald-600' : 'font-medium text-amber-600'}>
+                    <AnimatedNumber
+                        value={course.grade_scaled}
+                        format={(value) => value.toFixed(2)}
+                    />
+                </span>
             ),
         },
         {

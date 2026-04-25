@@ -10,6 +10,7 @@
 import { format, formatDistanceToNowStrict, isValid, parseISO, startOfDay } from 'date-fns';
 import type React from 'react';
 import type {
+    Course,
     CourseGradebook,
     GradebookAssessment,
     GradebookAssessmentCategory,
@@ -93,6 +94,23 @@ export interface ComputedPlanModeResult {
     target_percentage: number | null;
     required_average: number | null;
     remaining_weight: number;
+    is_feasible: boolean;
+    shortfall_percentage: number;
+}
+
+export interface ComputedSemesterGradebookSummary {
+    current_percentage: number | null;
+    current_gpa: number | null;
+    included_credits: number;
+    included_course_count: number;
+    excluded_course_count: number;
+}
+
+export interface ComputedSemesterGradebookPlanResult {
+    projected_percentage: number | null;
+    projected_gpa: number | null;
+    target_percentage: number | null;
+    included_credits: number;
     is_feasible: boolean;
     shortfall_percentage: number;
 }
@@ -378,6 +396,90 @@ export const buildComputedGradebookSummary = (gradebook: CourseGradebook): Compu
                     category_color_token: category?.color_token ?? null,
                 };
             }),
+    };
+};
+
+const getIncludedSemesterCourses = (courses: Course[]) => (
+    courses.filter((course) => course.include_in_gpa !== false && Number(course.credits) > 0)
+);
+
+export const buildSemesterGradebookSummary = (courses: Course[]): ComputedSemesterGradebookSummary => {
+    const includedCourses = getIncludedSemesterCourses(courses);
+    const includedCredits = roundValue(includedCourses.reduce((sum, course) => sum + Number(course.credits || 0), 0), 3);
+
+    if (includedCredits <= 0) {
+        return {
+            current_percentage: null,
+            current_gpa: null,
+            included_credits: 0,
+            included_course_count: 0,
+            excluded_course_count: courses.length,
+        };
+    }
+
+    return {
+        current_percentage: roundValue(
+            includedCourses.reduce((sum, course) => sum + (Number(course.grade_percentage || 0) * Number(course.credits || 0)), 0) / includedCredits,
+            3,
+        ),
+        current_gpa: roundValue(
+            includedCourses.reduce((sum, course) => sum + (Number(course.grade_scaled || 0) * Number(course.credits || 0)), 0) / includedCredits,
+            3,
+        ),
+        included_credits: includedCredits,
+        included_course_count: includedCourses.length,
+        excluded_course_count: courses.length - includedCourses.length,
+    };
+};
+
+export const buildSemesterGradebookPlanResult = (
+    courses: Course[],
+    whatIfScores: Record<string, number>,
+    scalingTable: GradebookScalingTable,
+    targetPercentage: number | null,
+): ComputedSemesterGradebookPlanResult => {
+    const includedCourses = getIncludedSemesterCourses(courses);
+    const includedCredits = roundValue(includedCourses.reduce((sum, course) => sum + Number(course.credits || 0), 0), 3);
+    if (includedCredits <= 0) {
+        return {
+            projected_percentage: null,
+            projected_gpa: null,
+            target_percentage: targetPercentage,
+            included_credits: 0,
+            is_feasible: false,
+            shortfall_percentage: targetPercentage ?? 0,
+        };
+    }
+
+    const projectedPercentage = roundValue(
+        includedCourses.reduce((sum, course) => {
+            const rawScore = whatIfScores[course.id];
+            const score = Number.isFinite(rawScore) ? clampScore(rawScore) : Number(course.grade_percentage || 0);
+            return sum + score * Number(course.credits || 0);
+        }, 0) / includedCredits,
+        3,
+    );
+    const projectedGpa = roundValue(
+        includedCourses.reduce((sum, course) => {
+            const rawScore = whatIfScores[course.id];
+            const hasWhatIf = Number.isFinite(rawScore);
+            const score = hasWhatIf ? clampScore(rawScore) : Number(course.grade_percentage || 0);
+            const gpa = hasWhatIf
+                ? calculateGradebookGpa(score, scalingTable) ?? Number(course.grade_scaled || 0)
+                : Number(course.grade_scaled || 0);
+            return sum + gpa * Number(course.credits || 0);
+        }, 0) / includedCredits,
+        3,
+    );
+    const shortfall = targetPercentage === null ? 0 : roundValue(Math.max(0, targetPercentage - projectedPercentage), 3);
+
+    return {
+        projected_percentage: projectedPercentage,
+        projected_gpa: projectedGpa,
+        target_percentage: targetPercentage,
+        included_credits: includedCredits,
+        is_feasible: targetPercentage !== null && shortfall <= 0.01,
+        shortfall_percentage: shortfall,
     };
 };
 

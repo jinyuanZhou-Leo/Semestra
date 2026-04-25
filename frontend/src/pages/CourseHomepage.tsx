@@ -292,7 +292,7 @@ const CourseHomepageContent: React.FC = () => {
 
     const {
         tabs,
-        isInitialized: isTabsInitialized,
+        isInitialized: _isTabsInitialized,
         reorderTabs
     } = useDashboardTabs({
         courseId: course?.id,
@@ -301,6 +301,7 @@ const CourseHomepageContent: React.FC = () => {
         managed: true,
         onRefresh: onTabReorderRefresh
     });
+    const isTabsInitialized = _isTabsInitialized && course !== null;
 
     const breadcrumb = (
         <Breadcrumb>
@@ -653,7 +654,6 @@ const CourseHomepageContent: React.FC = () => {
                 color: data.color ?? undefined,
                 credits: data.credits,
                 include_in_gpa: data.include_in_gpa,
-                hide_gpa: data.hide_gpa,
             });
             await publishTimetableScheduleChange({
                 source: 'course',
@@ -840,7 +840,6 @@ const CourseHomepageContent: React.FC = () => {
                         color: course?.color,
                         credits: course?.credits,
                         include_in_gpa: course?.include_in_gpa,
-                        hide_gpa: course?.hide_gpa
                     }}
                     resolvedDefaultColor={resolvedDefaultColor}
                     lmsLink={course?.lms_link}
@@ -869,7 +868,6 @@ const CourseHomepageContent: React.FC = () => {
         course?.credits,
         course?.color,
         course?.include_in_gpa,
-        course?.hide_gpa,
         course?.lms_link,
         resolvedDefaultColor,
         programLmsIntegrationId,

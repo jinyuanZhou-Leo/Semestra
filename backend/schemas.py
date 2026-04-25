@@ -1026,7 +1026,6 @@ class CourseBase(BaseModel):
     grade_percentage: float = 0.0
     grade_scaled: float = 0.0
     include_in_gpa: bool = True
-    hide_gpa: bool = False
 
 class CourseCreate(CourseBase):
     pass
@@ -1040,7 +1039,6 @@ class CourseUpdate(BaseModel):
     grade_percentage: Optional[float] = None
     grade_scaled: Optional[float] = None
     include_in_gpa: Optional[bool] = None
-    hide_gpa: Optional[bool] = None
     semester_id: Optional[str] = None
 
 class Course(CourseBase):
@@ -1781,7 +1779,6 @@ class CourseExport(BaseModel):
     grade_percentage: float = 0.0
     grade_scaled: float = 0.0
     include_in_gpa: bool = True
-    hide_gpa: bool = False
     widgets: List[WidgetExport] = []
     tabs: List[TabExport] = []
     plugin_activations: List[CoursePluginActivationExport] = []

@@ -276,7 +276,6 @@ class Course(Base):
     grade_percentage = Column(Float, default=0.0)
     grade_scaled = Column(Float, default=0.0)
     include_in_gpa = Column(Boolean, default=True)
-    hide_gpa = Column(Boolean, default=False)
     
     # Relationships
     program = relationship("Program", back_populates="courses")

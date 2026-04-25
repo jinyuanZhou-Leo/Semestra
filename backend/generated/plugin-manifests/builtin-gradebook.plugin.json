@@ -9,9 +9,10 @@
     {
       "type": "builtin-gradebook",
       "title": "Gradebook",
-      "description": "Track assessments and grade projections for this course.",
+      "description": "Track assessments and grade projections.",
       "icon": "notebook-tabs",
       "contexts": [
+        "semester",
         "course"
       ]
     }
@@ -20,18 +21,19 @@
     {
       "type": "builtin-gradebook-summary",
       "title": "Gradebook Summary",
-      "description": "See a quick grade summary for this course.",
+      "description": "See a quick grade summary.",
       "icon": "book-open-check",
       "contexts": [
+        "semester",
         "course"
       ],
       "layout": {
-        "w": 3,
-        "h": 3,
+        "w": 2,
+        "h": 2,
         "minW": 2,
         "minH": 2,
-        "maxW": 4,
-        "maxH": 4
+        "maxW": 3,
+        "maxH": 2
       },
       "max_instances": "unlimited"
     }

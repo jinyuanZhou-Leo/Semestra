@@ -162,7 +162,6 @@ class BackupImportExportTests(unittest.TestCase):
                 grade_percentage=88.0,
                 grade_scaled=4.0,
                 include_in_gpa=True,
-                hide_gpa=False,
             ),
             program.id,
             semester.id,
@@ -177,7 +176,6 @@ class BackupImportExportTests(unittest.TestCase):
                 grade_percentage=91.0,
                 grade_scaled=4.0,
                 include_in_gpa=True,
-                hide_gpa=False,
             ),
             program.id,
             None,
@@ -457,7 +455,6 @@ class BackupImportExportTests(unittest.TestCase):
                 category="MIE",
                 credits=0.5,
                 include_in_gpa=True,
-                hide_gpa=False,
             ),
             program.id,
             None,
@@ -485,6 +482,35 @@ class BackupImportExportTests(unittest.TestCase):
             [(item.code, item.abbreviation) for item in exported_course.event_types],
             [("STUDIO", "STD")],
         )
+
+    def test_export_omits_course_hide_gpa(self) -> None:
+        program = crud.create_program(
+            self.db,
+            schemas.ProgramCreate(
+                name="Engineering",
+                gpa_scaling_table='{"90-100":4.0}',
+                subject_color_map="{}",
+                grad_requirement_credits=20.0,
+                hide_gpa=False,
+                program_timezone="America/Toronto",
+            ),
+            self.source_user.id,
+        )
+        crud.create_course(
+            self.db,
+            schemas.CourseCreate(
+                name="MIE200",
+                category="MIE",
+                credits=0.5,
+                include_in_gpa=True,
+            ),
+            program.id,
+            None,
+        )
+
+        exported = asyncio.run(main.export_user_data(db=self.db, current_user=self.source_user))
+        exported_course = exported.programs[0].courses[0]
+        self.assertNotIn("hide_gpa", exported_course.model_dump())
 
 if __name__ == "__main__":
     unittest.main()

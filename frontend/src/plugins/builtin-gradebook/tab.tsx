@@ -1,6 +1,6 @@
-// input:  [course gradebook APIs, course data update context, LMS assignment APIs, plugin UI-state hooks, shared timetable refresh bus, animated stat-strip UI, shadcn UI/scroll-area primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers plus GPA-threshold resolution helpers, and shared business empty-state wrappers]
-// output: [course-scoped builtin-gradebook tab component plus tab definition]
-// pos:    [course-scoped gradebook surface for local assessment scores, extracted assessment dialog and sortable table-head subcomponents, Calendar due-date sync, instance-local assessment-sort and plan-mode what-if UI state, exact-100 weight gating, animated mode-specific toolbar controls, and semantic empty-state feedback]
+// input:  [course gradebook APIs, Course/Semester data contexts, LMS assignment APIs, plugin UI-state hooks, shared timetable refresh bus, animated stat-strip UI, shadcn UI/scroll-area primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers plus GPA-threshold resolution helpers, and shared business empty-state wrappers]
+// output: [course- and semester-scoped builtin-gradebook tab component plus tab definition]
+// pos:    [Gradebook tab runtime that keeps Course assessment scoring local while deriving Semester course-row GPA and What If planning from host-provided Semester courses]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { format, isValid, parseISO } from 'date-fns';
 import { ArrowRightLeft, CalendarDays, FlaskConical, GraduationCap, Pencil, Percent, Plus, Sparkles, Target, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -16,8 +17,10 @@ import { toast } from 'sonner';
 import { AppEmptyState } from '@/components/AppEmptyState';
 import { DataTable, DataTableActionMenu, type ColumnDef } from '@/components/DataTable';
 import api, {
+    type Course,
     type CourseGradebook,
     type GradebookAssessment,
+    type GradebookScalingTable,
 } from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
 import type { TabDefinition, TabProps } from '@/plugin-system';
@@ -56,14 +59,19 @@ import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group';
 import { cn } from '@/lib/utils';
 import { useCourseData } from '@/contexts/CourseDataContext';
+import { useSemesterData } from '@/contexts/SemesterDataContext';
 import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
 import { usePluginUiState } from '@/plugin-system';
+import { DEFAULT_GPA_SCALING_TABLE_JSON } from '@/utils/gpaUtils';
+import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor } from '@/utils/courseCategoryBadge';
 import { publishTimetableScheduleChange } from '../builtin-event-core/shared/publishTimetableScheduleChange';
 import { AssessmentDialog, createAssessmentDraft, type AssessmentDraft } from './components/AssessmentDialog';
 import {
     BUILTIN_GRADEBOOK_TAB_TYPE,
     buildComputedGradebookSummary,
     buildPlanModeResult,
+    buildSemesterGradebookPlanResult,
+    buildSemesterGradebookSummary,
     buildSuggestedWhatIfScores,
     calculateGradebookGpa,
     hasCompleteGradebookWeight,
@@ -156,7 +164,7 @@ const parseTargetDraftValue = (
     };
 };
 
-const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
+const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const { course, updateCourse } = useCourseData();
     const {
         state: planModeState,
@@ -888,7 +896,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 </p>
                             </div>
                             <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
-                                {course.hide_gpa ? '****' : showWeightMismatchState ? (
+                                {showWeightMismatchState ? (
                                     <span className="text-rose-600 dark:text-rose-400">N/A</span>
                                 ) : planMode && whatIfResult ? (
                                     <span className="text-amber-600 dark:text-amber-400">
@@ -904,7 +912,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                     />
                                 )}
                             </div>
-                            {!course.hide_gpa && showWeightMismatchState ? (
+                            {showWeightMismatchState ? (
                                 <p className="mt-1 text-[11px] text-rose-700/90 dark:text-rose-300/90">
                                     Weight {summary.total_weight.toFixed(1)}%. Need 100%.
                                 </p>
@@ -936,7 +944,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 </p>
                             </div>
                             <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
-                                {course.hide_gpa ? '****' : showWeightMismatchState ? (
+                                {showWeightMismatchState ? (
                                     <span className="text-rose-600 dark:text-rose-400">N/A</span>
                                 ) : planMode && whatIfResult ? (
                                     <span className="text-amber-600 dark:text-amber-400">
@@ -954,7 +962,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                         />
                                 )}
                             </div>
-                            {!course.hide_gpa && showWeightMismatchState ? (
+                            {showWeightMismatchState ? (
                                 <p className="mt-1 text-[11px] text-rose-700/90 dark:text-rose-300/90">
                                     Set weights to 100%.
                                 </p>
@@ -1202,6 +1210,411 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 </AlertDialogContent>
             </AlertDialog>
         </div>
+    );
+};
+
+interface SemesterGradebookPlanModeUiState {
+    planMode: boolean;
+    whatIfDrafts: Record<string, string>;
+    targetInputMode: TargetInputMode;
+    targetDraft: string;
+}
+
+const parseScalingTableJson = (value: string | undefined | null): GradebookScalingTable => {
+    const rawValue = value?.trim() || DEFAULT_GPA_SCALING_TABLE_JSON;
+    try {
+        const parsed = JSON.parse(rawValue) as unknown;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return JSON.parse(DEFAULT_GPA_SCALING_TABLE_JSON) as GradebookScalingTable;
+        }
+        return Object.fromEntries(
+            Object.entries(parsed)
+                .map(([key, rawGpa]) => [key, Number(rawGpa)] as const)
+                .filter(([, gpa]) => Number.isFinite(gpa)),
+        );
+    } catch {
+        return JSON.parse(DEFAULT_GPA_SCALING_TABLE_JSON) as GradebookScalingTable;
+    }
+};
+
+const getSemesterCourseDisplayName = (course: Course) => course.alias?.trim() || course.name;
+
+const SemesterGradebookTab: React.FC<TabProps> = ({ semesterId }) => {
+    const { semester, isLoading } = useSemesterData();
+    const {
+        state: planModeState,
+        setState: setPlanModeState,
+    } = usePluginUiState<SemesterGradebookPlanModeUiState>('semester-gradebook-plan-mode', () => ({
+        planMode: false,
+        whatIfDrafts: {},
+        targetInputMode: 'gpa',
+        targetDraft: '3.7',
+    }));
+
+    if (!semesterId) {
+        return (
+            <AppEmptyState
+                scenario="unavailable"
+                size="section"
+                title="Gradebook unavailable"
+                description="This tab requires a semester context."
+            />
+        );
+    }
+
+    if (isLoading && !semester) {
+        return (
+            <div className="flex flex-col gap-4">
+                <Skeleton className="h-24 w-full rounded-lg" />
+                <Skeleton className="h-[420px] w-full rounded-lg" />
+            </div>
+        );
+    }
+
+    if (!semester) {
+        return (
+            <AppEmptyState
+                scenario="unavailable"
+                size="section"
+                title="Gradebook failed to load"
+                description="Semester data is unavailable."
+            />
+        );
+    }
+
+    const courses = semester.courses ?? [];
+    const scalingTable = parseScalingTableJson(semester.program?.gpa_scaling_table);
+    const resolvedSubjectColorMap = parseSubjectColorMap(semester.program?.subject_color_map);
+    const summary = buildSemesterGradebookSummary(courses);
+    const whatIfScores = Object.fromEntries(
+        Object.entries(planModeState.whatIfDrafts)
+            .map(([courseId, value]) => [courseId, parseOptionalNumber(value)] as const)
+            .filter((entry): entry is readonly [string, number] => entry[1] !== null),
+    );
+    const parsedTarget = parseOptionalNumber(planModeState.targetDraft);
+    const targetPercentage = parsedTarget === null
+        ? null
+        : planModeState.targetInputMode === 'gpa'
+            ? resolveTargetPercentageForGpa(parsedTarget, scalingTable)
+            : parsedTarget;
+    const planResult = buildSemesterGradebookPlanResult(courses, whatIfScores, scalingTable, targetPercentage);
+    const displayedPercentage = planModeState.planMode ? planResult.projected_percentage : summary.current_percentage;
+    const displayedGpa = planModeState.planMode ? planResult.projected_gpa : summary.current_gpa;
+
+    const updatePlanModeState = (patch: Partial<SemesterGradebookPlanModeUiState>) => {
+        setPlanModeState((currentState) => ({
+            ...currentState,
+            ...patch,
+        }));
+    };
+
+    const handleWhatIfChange = (courseId: string, value: string) => {
+        if (!isBoundedPercentageInput(value)) return;
+        setPlanModeState((currentState) => ({
+            ...currentState,
+            whatIfDrafts: {
+                ...currentState.whatIfDrafts,
+                [courseId]: value,
+            },
+        }));
+    };
+
+    const handleToggleTargetInputMode = () => {
+        const nextInputMode: TargetInputMode = planModeState.targetInputMode === 'gpa' ? 'percentage' : 'gpa';
+        const parsed = parseOptionalNumber(planModeState.targetDraft);
+        const nextDraft = parsed === null
+            ? ''
+            : nextInputMode === 'percentage'
+                ? String(resolveTargetPercentageForGpa(parsed, scalingTable) ?? '')
+                : String(calculateGradebookGpa(parsed, scalingTable) ?? '');
+        updatePlanModeState({
+            targetInputMode: nextInputMode,
+            targetDraft: nextDraft,
+        });
+    };
+
+    const handleAutoFill = () => {
+        if (targetPercentage === null) {
+            toast.error(`Enter a ${planModeState.targetInputMode === 'gpa' ? 'GPA' : 'percentage'} target before running Auto-fill.`);
+            return;
+        }
+        const nextDrafts = { ...planModeState.whatIfDrafts };
+        courses.forEach((course) => {
+            if (course.include_in_gpa === false || Number(course.credits) <= 0) return;
+            nextDrafts[course.id] = String(Math.max(0, Math.min(100, targetPercentage)));
+        });
+        updatePlanModeState({ whatIfDrafts: nextDrafts });
+    };
+
+    const courseColumns: ColumnDef<Course>[] = [
+        {
+            key: 'name',
+            label: 'Course',
+            fit: 'fill',
+            minWidth: 220,
+            sortable: (left, right) => getSemesterCourseDisplayName(left).localeCompare(getSemesterCourseDisplayName(right)),
+            cellClassName: 'py-3',
+            truncateCell: true,
+            cell: (course) => (
+                <div className="min-w-0">
+                    <Link
+                        to={`/courses/${course.id}`}
+                        state={{ preferredTabType: BUILTIN_GRADEBOOK_TAB_TYPE }}
+                        className="block min-w-0 truncate font-medium text-foreground hover:underline"
+                        title={course.name}
+                    >
+                        {course.name}
+                    </Link>
+                    {course.alias ? (
+                        <div className="truncate text-xs text-muted-foreground" title={course.alias}>
+                            {course.alias}
+                        </div>
+                    ) : null}
+                </div>
+            ),
+        },
+        {
+            key: 'category',
+            label: 'Category',
+            width: 132,
+            sortable: true,
+            cellClassName: 'py-3',
+            cell: (course) => course.category?.trim() ? (
+                <Badge
+                    variant="outline"
+                    className={cn(
+                        'max-w-full select-none truncate border-0 px-2.5 py-0.5 text-xs font-medium',
+                        getCourseCategoryBadgeClassName(course.category),
+                    )}
+                    style={getCourseBadgeStyle(resolveCourseColor(course, resolvedSubjectColorMap))}
+                    title={course.category}
+                >
+                    {course.category}
+                </Badge>
+            ) : (
+                <span className="text-xs text-muted-foreground/60">None</span>
+            ),
+        },
+        {
+            key: 'credits',
+            label: 'Credits',
+            width: 96,
+            align: 'right',
+            sortable: true,
+            cellClassName: 'py-3',
+            cell: (course) => (
+                <div className="flex min-h-8 items-center justify-end">
+                    <span className="tabular-nums">{Number(course.credits || 0).toFixed(2)}</span>
+                </div>
+            ),
+        },
+        {
+            key: 'grade_percentage',
+            label: planModeState.planMode ? 'What If' : 'Grade',
+            width: 112,
+            align: 'right',
+            sortable: true,
+            cellClassName: 'py-3',
+            cell: (course) => (
+                <div className="flex min-h-8 items-center justify-end">
+                    {planModeState.planMode && course.include_in_gpa !== false && Number(course.credits) > 0 ? (
+                        <Input
+                            aria-label={`${course.name} what-if grade`}
+                            className="ml-auto h-8 w-24 text-right tabular-nums border-amber-400/80 bg-amber-50/80 text-amber-950 focus-visible:bg-background dark:border-amber-500/50 dark:bg-amber-950/20 dark:text-amber-50"
+                            value={planModeState.whatIfDrafts[course.id] ?? ''}
+                            inputMode="decimal"
+                            placeholder="What if"
+                            onChange={(event) => handleWhatIfChange(course.id, event.target.value)}
+                        />
+                    ) : (
+                        <span className="tabular-nums">{formatGradebookGpaPercentage(course.grade_percentage)}</span>
+                    )}
+                </div>
+            ),
+        },
+        {
+            key: 'grade_scaled',
+            label: 'GPA',
+            width: 96,
+            align: 'right',
+            sortable: true,
+            cellClassName: 'py-3',
+            cell: (course) => (
+                <div className="flex min-h-8 items-center justify-end">
+                    <span className="tabular-nums">{Number(course.grade_scaled || 0).toFixed(2)}</span>
+                </div>
+            ),
+        },
+    ];
+
+    return (
+        <div className="space-y-4">
+            <section className="mb-2.5">
+                <div
+                    className={cn(
+                        'grid select-none rounded-lg border overflow-hidden transition-colors duration-300',
+                        planModeState.planMode
+                            ? 'border-amber-300/60 dark:border-amber-500/30'
+                            : 'border-border/70',
+                    )}
+                    style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}
+                >
+                    <div className={cn(
+                        'min-w-0 px-3.5 py-2.5 transition-colors duration-300',
+                        planModeState.planMode ? 'bg-amber-50/60 dark:bg-amber-950/25' : '',
+                    )}>
+                        <div className="flex items-center gap-1.5">
+                            {planModeState.planMode
+                                ? <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
+                                : <Percent className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />}
+                            <p className={cn(
+                                'truncate text-xs font-medium transition-colors duration-300',
+                                planModeState.planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
+                            )}>
+                                {planModeState.planMode ? 'Grade · What If' : 'Grade'}
+                            </p>
+                        </div>
+                        <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
+                            {displayedPercentage === null ? 'N/A' : planModeState.planMode ? (
+                                <span className="text-amber-600 dark:text-amber-400">{formatGradebookGpaPercentage(displayedPercentage)}</span>
+                            ) : formatGradebookGpaPercentage(displayedPercentage)}
+                        </div>
+                    </div>
+                    <div className={cn(
+                        'min-w-0 border-l px-3.5 py-2.5 transition-colors duration-300',
+                        planModeState.planMode
+                            ? 'border-amber-300/60 bg-amber-50/60 dark:border-amber-500/30 dark:bg-amber-950/25'
+                            : 'border-border/70',
+                    )}>
+                        <div className="flex items-center gap-1.5">
+                            {planModeState.planMode
+                                ? <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
+                                : <GraduationCap className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />}
+                            <p className={cn(
+                                'truncate text-xs font-medium transition-colors duration-300',
+                                planModeState.planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
+                            )}>
+                                {planModeState.planMode ? 'GPA · What If' : 'GPA'}
+                            </p>
+                        </div>
+                        <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
+                            {displayedGpa === null ? 'N/A' : planModeState.planMode ? (
+                                <span className="text-amber-600 dark:text-amber-400">{displayedGpa.toFixed(2)}</span>
+                            ) : displayedGpa.toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section className="space-y-3">
+                <h2 className="text-lg font-semibold tracking-tight">Semester Gradebook</h2>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+                        <div className="flex h-11 w-full shrink-0 items-center justify-between gap-3 sm:w-auto sm:justify-start">
+                            <Label htmlFor="semester-gradebook-plan-mode" className="flex items-center gap-2 text-sm font-medium tracking-tight">
+                                <Sparkles className={cn('h-4 w-4', planModeState.planMode ? 'text-amber-500 dark:text-amber-400' : 'text-muted-foreground')} />
+                                <span>Plan Mode</span>
+                            </Label>
+                            <Switch
+                                id="semester-gradebook-plan-mode"
+                                checked={planModeState.planMode}
+                                onCheckedChange={(checked) => updatePlanModeState({ planMode: checked })}
+                                className="data-checked:bg-amber-500 data-unchecked:bg-slate-300/80 dark:data-unchecked:bg-slate-700"
+                                aria-label="Toggle Plan Mode"
+                            />
+                        </div>
+                        {planModeState.planMode ? (
+                            <div className="flex min-w-0 items-center gap-2">
+                                <Target className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
+                                <Label htmlFor="semester-gradebook-target" className="shrink-0 text-sm font-medium whitespace-nowrap">
+                                    Target
+                                </Label>
+                                <InputGroup className="min-w-0 flex-1 sm:w-32 sm:flex-none">
+                                    <InputGroupInput
+                                        id="semester-gradebook-target"
+                                        aria-label={planModeState.targetInputMode === 'gpa' ? 'Target GPA' : 'Target %'}
+                                        className="tabular-nums"
+                                        value={planModeState.targetDraft}
+                                        inputMode="decimal"
+                                        placeholder={planModeState.targetInputMode === 'gpa' ? '3.70' : '85.0'}
+                                        onChange={(event) => updatePlanModeState({ targetDraft: event.target.value })}
+                                    />
+                                    <InputGroupAddon align="inline-end">
+                                        <InputGroupText>{planModeState.targetInputMode === 'gpa' ? 'GPA' : '%'}</InputGroupText>
+                                    </InputGroupAddon>
+                                </InputGroup>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={handleToggleTargetInputMode}
+                                    aria-label={planModeState.targetInputMode === 'gpa' ? 'Switch target input to GPA Percentage' : 'Switch target input to GPA'}
+                                    title={planModeState.targetInputMode === 'gpa' ? 'Switch to GPA Percentage' : 'Switch to GPA'}
+                                >
+                                    <ArrowRightLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                    <span>{planModeState.targetInputMode === 'gpa' ? 'Use %' : 'Use GPA'}</span>
+                                </Button>
+                            </div>
+                        ) : null}
+                    </div>
+
+                    <div className="w-full shrink-0 sm:w-auto">
+                        <div
+                            className={cn(
+                                'transition-all duration-200 sm:w-[184px]',
+                                planModeState.planMode ? 'opacity-100' : 'pointer-events-none invisible opacity-0',
+                            )}
+                        >
+                            <Button
+                                type="button"
+                                onClick={handleAutoFill}
+                                disabled={!planModeState.planMode}
+                                className="w-full bg-amber-500 text-amber-950 hover:bg-amber-400 disabled:bg-muted disabled:text-muted-foreground"
+                            >
+                                <Sparkles className="mr-2 h-4 w-4 shrink-0" />
+                                <span>Auto-fill</span>
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="min-h-[400px] rounded-md border bg-card flex flex-col overflow-hidden">
+                    <DataTable
+                        title="Semester Courses"
+                        description={`${summary.included_course_count} course${summary.included_course_count === 1 ? '' : 's'} included in GPA · ${summary.included_credits.toFixed(2)} credits`}
+                        showHeader={false}
+                        items={courses}
+                        columns={courseColumns}
+                        getRowKey={(course) => course.id}
+                        emptyMessage="No courses assigned."
+                        sortPersistenceKey={semesterId ? `gradebook-semester-courses:${semesterId}` : undefined}
+                        minWidthClassName="min-w-[54rem]"
+                        maxBodyHeight={600}
+                        freezeHeader
+                        rootClassName="flex-1 space-y-0"
+                        shellClassName="rounded-none border-0"
+                        tableClassName="[&_th]:bg-card [&_td]:bg-card"
+                    />
+                </div>
+            </section>
+        </div>
+    );
+};
+
+const BuiltinGradebookTab: React.FC<TabProps> = (props) => {
+    if (props.courseId) {
+        return <CourseGradebookTab {...props} />;
+    }
+    if (props.semesterId) {
+        return <SemesterGradebookTab {...props} />;
+    }
+    return (
+        <AppEmptyState
+            scenario="unavailable"
+            size="section"
+            title="Gradebook unavailable"
+            description="This tab requires a course or semester context."
+        />
     );
 };
 

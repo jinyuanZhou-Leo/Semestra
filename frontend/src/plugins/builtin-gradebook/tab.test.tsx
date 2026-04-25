@@ -8,17 +8,23 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
 import { DialogProvider } from '@/contexts/DialogContext';
 import * as courseDataContext from '@/contexts/CourseDataContext';
+import * as semesterDataContext from '@/contexts/SemesterDataContext';
 import * as courseGradebookQuery from '@/hooks/useCourseGradebookQuery';
 import { PluginRuntimeInstanceProvider, resetPluginUiStateCacheForTests } from '@/plugin-system';
-import api, { type CourseGradebook, type GradebookAssessment, type GradebookAssessmentCategory } from '@/services/api';
+import api, { type Course, type CourseGradebook, type GradebookAssessment, type GradebookAssessmentCategory, type Semester } from '@/services/api';
 import { BuiltinGradebookTabDefinition } from './tab';
 
 vi.mock('@/contexts/CourseDataContext', () => ({
     useCourseData: vi.fn(),
+}));
+
+vi.mock('@/contexts/SemesterDataContext', () => ({
+    useSemesterData: vi.fn(),
 }));
 
 vi.mock('@/hooks/useCourseGradebookQuery', () => ({
@@ -114,22 +120,58 @@ const renderGradebookTab = () => {
 
     return render(
         <QueryClientProvider client={queryClient}>
-            <DialogProvider>
-                <PluginRuntimeInstanceProvider
-                    value={{
-                        workspaceKind: 'course',
-                        workspaceId: 'course-1',
-                        slotKind: 'tab',
-                        slotId: 'gradebook-tab',
-                        pluginType: 'builtin-gradebook',
-                    }}
-                >
-                    <TabComponent
-                        tabId="gradebook-tab"
-                        courseId="course-1"
-                    />
-                </PluginRuntimeInstanceProvider>
-            </DialogProvider>
+            <MemoryRouter>
+                <DialogProvider>
+                    <PluginRuntimeInstanceProvider
+                        value={{
+                            workspaceKind: 'course',
+                            workspaceId: 'course-1',
+                            slotKind: 'tab',
+                            slotId: 'gradebook-tab',
+                            pluginType: 'builtin-gradebook',
+                        }}
+                    >
+                        <TabComponent
+                            tabId="gradebook-tab"
+                            courseId="course-1"
+                        />
+                    </PluginRuntimeInstanceProvider>
+                </DialogProvider>
+            </MemoryRouter>
+        </QueryClientProvider>,
+    );
+};
+
+const renderSemesterGradebookTab = () => {
+    const queryClient = new QueryClient({
+        defaultOptions: {
+            queries: {
+                retry: false,
+            },
+        },
+    });
+    const TabComponent = BuiltinGradebookTabDefinition.component;
+
+    return render(
+        <QueryClientProvider client={queryClient}>
+            <MemoryRouter>
+                <DialogProvider>
+                    <PluginRuntimeInstanceProvider
+                        value={{
+                            workspaceKind: 'semester',
+                            workspaceId: 'semester-1',
+                            slotKind: 'tab',
+                            slotId: 'gradebook-tab',
+                            pluginType: 'builtin-gradebook',
+                        }}
+                    >
+                        <TabComponent
+                            tabId="gradebook-tab"
+                            semesterId="semester-1"
+                        />
+                    </PluginRuntimeInstanceProvider>
+                </DialogProvider>
+            </MemoryRouter>
         </QueryClientProvider>,
     );
 };
@@ -174,7 +216,6 @@ describe('BuiltinGradebookTab', () => {
                 grade_percentage: 86,
                 program_id: 'program-1',
                 semester_id: 'semester-1',
-                hide_gpa: false,
                 runtime: {
                     runtime_tabs: [],
                     tab_catalog_items: [],
@@ -199,6 +240,14 @@ describe('BuiltinGradebookTab', () => {
         vi.mocked(courseGradebookQuery.useCourseGradebookMutation).mockReturnValue({
             mutateAsync: vi.fn(),
         } as unknown as ReturnType<typeof courseGradebookQuery.useCourseGradebookMutation>);
+        vi.mocked(semesterDataContext.useSemesterData).mockReturnValue({
+            semester: buildSemester(),
+            setSemester: vi.fn(),
+            updateSemester: vi.fn(),
+            saveSemester: vi.fn(),
+            refreshSemester: vi.fn(),
+            isLoading: false,
+        });
     });
 
     afterEach(() => {
@@ -363,4 +412,106 @@ describe('BuiltinGradebookTab', () => {
         });
         expect(api.updateCourseGradebookPreferences).toHaveBeenCalledWith('course-1', { target_gpa: 3.9 });
     });
+
+    it('renders semester course rows and credit-weighted GPA from semester data', async () => {
+        vi.mocked(semesterDataContext.useSemesterData).mockReturnValue({
+            semester: buildSemester({
+                courses: [
+                    buildCourse({ id: 'course-1', name: 'Algorithms', alias: 'CSC301', category: 'CS', credits: 3, grade_percentage: 90, grade_scaled: 4, include_in_gpa: true }),
+                    buildCourse({ id: 'course-2', name: 'Studio', alias: 'DES200', category: 'Design', credits: 1, grade_percentage: 80, grade_scaled: 3, include_in_gpa: true }),
+                    buildCourse({ id: 'course-3', name: 'Seminar', category: 'Breadth', credits: 1, grade_percentage: 50, grade_scaled: 0, include_in_gpa: false }),
+                ],
+            }),
+            setSemester: vi.fn(),
+            updateSemester: vi.fn(),
+            saveSemester: vi.fn(),
+            refreshSemester: vi.fn(),
+            isLoading: false,
+        });
+
+        renderSemesterGradebookTab();
+
+        expect(await screen.findByText('Semester Gradebook')).toBeInTheDocument();
+        expect(screen.getByText('Algorithms')).toBeInTheDocument();
+        expect(screen.getByText('CSC301')).toBeInTheDocument();
+        expect(screen.getByText('CS')).toBeInTheDocument();
+        expect(screen.getByText('3.75')).toBeInTheDocument();
+        expect(screen.getByText('87.5%')).toBeInTheDocument();
+    });
+
+    it('updates semester what-if projection without calling course gradebook APIs', async () => {
+        const getCourseGradebookSpy = vi.spyOn(api, 'getCourseGradebook');
+        vi.mocked(courseGradebookQuery.useCourseGradebookQuery).mockClear();
+        renderSemesterGradebookTab();
+
+        fireEvent.click(screen.getByLabelText('Toggle Plan Mode'));
+
+        const whatIfInputs = await screen.findAllByPlaceholderText('What if');
+        fireEvent.change(whatIfInputs[1]!, { target: { value: '100' } });
+
+        await waitFor(() => {
+            expect(screen.getByText('92.5%')).toBeInTheDocument();
+        });
+        expect(courseGradebookQuery.useCourseGradebookQuery).not.toHaveBeenCalledWith('course-1');
+        expect(getCourseGradebookSpy).not.toHaveBeenCalled();
+    });
+});
+
+const buildCourse = (overrides: Partial<Course> = {}): Course => ({
+    id: overrides.id ?? 'course-1',
+    name: overrides.name ?? 'Course',
+    alias: overrides.alias,
+    category: overrides.category,
+    color: overrides.color,
+    credits: overrides.credits ?? 0,
+    grade_scaled: overrides.grade_scaled ?? 0,
+    grade_percentage: overrides.grade_percentage ?? 0,
+    program_id: overrides.program_id ?? 'program-1',
+    semester_id: overrides.semester_id ?? 'semester-1',
+    include_in_gpa: overrides.include_in_gpa ?? true,
+    runtime: overrides.runtime ?? {
+        runtime_tabs: [],
+        tab_catalog_items: [],
+        widget_catalog_items: [],
+        enabled_plugin_ids: [],
+        enabled_plugins: [],
+        available_widget_types: [],
+    },
+});
+
+const buildSemester = (overrides: Partial<Semester & { courses: Course[] }> = {}): Semester & { courses: Course[] } => ({
+    id: overrides.id ?? 'semester-1',
+    name: overrides.name ?? 'Winter 2026',
+    average_scaled: overrides.average_scaled ?? 0,
+    average_percentage: overrides.average_percentage ?? 0,
+    program_id: overrides.program_id ?? 'program-1',
+    program: overrides.program ?? {
+        id: 'program-1',
+        name: 'Engineering',
+        cgpa_scaled: 0,
+        cgpa_percentage: 0,
+        grad_requirement_credits: 20,
+        gpa_scaling_table: JSON.stringify(gradebook.scaling_table),
+        hide_gpa: false,
+        runtime: {
+            runtime_tabs: [],
+            tab_catalog_items: [],
+            widget_catalog_items: [],
+            enabled_plugin_ids: [],
+            enabled_plugins: [],
+            available_widget_types: [],
+        },
+    } as never,
+    courses: overrides.courses ?? [
+        buildCourse({ id: 'course-1', name: 'Algorithms', credits: 3, grade_percentage: 90, grade_scaled: 4, include_in_gpa: true }),
+        buildCourse({ id: 'course-2', name: 'Studio', credits: 1, grade_percentage: 80, grade_scaled: 3, include_in_gpa: true }),
+    ],
+    runtime: overrides.runtime ?? {
+        runtime_tabs: [],
+        tab_catalog_items: [],
+        widget_catalog_items: [],
+        enabled_plugin_ids: [],
+        enabled_plugins: [],
+        available_widget_types: [],
+    },
 });

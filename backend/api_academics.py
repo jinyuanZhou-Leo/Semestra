@@ -108,7 +108,6 @@ def _serialize_course_detail_payload(db: Session, course: models.Course) -> dict
         "program_id": course.program_id,
         "semester_id": course.semester_id,
         "include_in_gpa": course.include_in_gpa,
-        "hide_gpa": course.hide_gpa,
         "has_gradebook": course.has_gradebook,
         "gradebook_revision": course.gradebook_revision,
         "has_lms_link": course.has_lms_link,

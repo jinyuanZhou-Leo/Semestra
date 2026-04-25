@@ -27,7 +27,6 @@ import { Tabs } from '../components/Tabs';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { CardSkeleton } from '../components/skeletons';
-import { AnimatedNumber } from '../components/AnimatedNumber';
 import { Container } from '../components/Container';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
@@ -38,8 +37,7 @@ import { SemesterPluginManagementPanel } from '../components/SemesterPluginManag
 import { SemesterCourseManagementSection } from '../components/SemesterCourseManagementSection';
 import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
 import { WorkspaceNav } from '../components/WorkspaceNav';
-import { WorkspaceOverviewStats } from '../components/WorkspaceOverviewStats';
-import { BookOpen, GraduationCap, Percent, Plus, Settings, LayoutDashboard, PackagePlus } from 'lucide-react';
+import { BookOpen, Plus, Settings, LayoutDashboard, PackagePlus } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import {
     Dialog,
@@ -53,7 +51,6 @@ import { IconCircle } from '../components/IconCircle';
 import { getPluginIconById } from '../plugin-system';
 import type { SemesterPluginActivation } from '../services/api';
 import { toast } from 'sonner';
-import { formatGpaPercentage } from '@/utils/percentage';
 import type { LayoutCommandGroup } from '../components/GlobalCommandPalette';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
@@ -354,49 +351,6 @@ const [isConfirmingPending, setIsConfirmingPending] = useState(false);
         </Breadcrumb>
     );
 
-    const semesterOverview = useMemo(() => {
-        if (!semester) return null;
-
-        const totalCredits = semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0;
-        return (
-            <WorkspaceOverviewStats
-                items={[
-                    {
-                        label: 'Credits',
-                        icon: <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />,
-                        value: (
-                            <AnimatedNumber
-                                value={totalCredits}
-                                format={(value) => value.toFixed(2)}
-                            />
-                        ),
-                    },
-                    {
-                        label: 'Average',
-                        icon: <Percent className="h-3.5 w-3.5" aria-hidden="true" />,
-                        value: (
-                            <AnimatedNumber
-                                value={semester.average_percentage}
-                                format={formatGpaPercentage}
-                            />
-                        ),
-                    },
-                    {
-                        label: 'GPA',
-                        icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />,
-                        value: (
-                            <AnimatedNumber
-                                value={semester.average_scaled}
-                                format={(value) => value.toFixed(2)}
-                                rainbowThreshold={3.8}
-                            />
-                        ),
-                    },
-                ]}
-            />
-        );
-    }, [semester]);
-
     const dashboardContent = useMemo(() => {
         if (!semester) return null;
         if (!activeTabId) return <PluginTabSkeleton />;
@@ -620,7 +574,7 @@ const [isConfirmingPending, setIsConfirmingPending] = useState(false);
         isLoading,
         dashboard: {
             widgets: visibleWidgets,
-            overview: semesterOverview,
+            overview: null,
             onAddWidgetClick: openAddWidgetModal,
             onRemoveWidget: handleRemoveWidget,
             onRemoveUnavailableWidget: handleRemoveUnavailableWidget,
@@ -634,7 +588,6 @@ const [isConfirmingPending, setIsConfirmingPending] = useState(false);
     }), [
         isLoading,
         visibleWidgets,
-        semesterOverview,
         openAddWidgetModal,
         handleRemoveWidget,
         handleRemoveUnavailableWidget,

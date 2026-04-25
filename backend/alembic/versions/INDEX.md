@@ -31,3 +31,7 @@ Keep downgrade steps practical, but prioritize accurate forward migrations for a
 | 20260402_0022_drop_semester_plugin_setup_state.py | Schema migration | Drops the obsolete `semester_plugin_activations.setup_state` column after semester plugin setup moved fully into `tab_settings`. |
 | 20260404_0023_drop_legacy_course_event_types_table.py | Schema migration | Drops the legacy `course_event_types` table plus old course-section and course-event foreign keys now that builtin event types are sourced only from `tab_settings`. |
 | 20260407_0024_repair_legacy_semester_homepage_tab_orders.py | Data migration | Repairs stale `workspace_tab_order_entries(bucket_type='semester_homepage')` rows when old backfilled Semester homepage orders no longer match the current available Semester runtime tabs, preserving surviving order while appending missing tabs and removing defunct ones. |
+| 20260413_0025_rename_course_resources_plugin_identity.py | Data migration | Renames legacy Course Resources plugin identifiers so runtime tabs and widgets resolve to the current builtin-course-resources identity. |
+| 20260415_0026_add_missing_fk_indexes.py | Schema migration | Adds missing foreign-key indexes needed by current runtime and cleanup paths. |
+| 20260415_0027_add_plugin_auto_enable_semesters.py | Schema migration | Adds Program-level plugin auto-enable policy for newly created Semesters. |
+| 20260424_0028_drop_course_hide_gpa.py | Schema migration | Drops the legacy Course-only `hide_gpa` column while preserving Program-level GPA hiding. |

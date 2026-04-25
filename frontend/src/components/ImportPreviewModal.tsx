@@ -60,7 +60,6 @@ export interface CourseExport {
     grade_percentage: number;
     grade_scaled: number;
     include_in_gpa: boolean;
-    hide_gpa: boolean;
     widgets: ImportBackupCollection;
     tabs: ImportBackupCollection;
     gradebook?: unknown;
@@ -432,7 +431,6 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
                                                                                         {countOf(course.events) > 0 ? ` · ${countOf(course.events)} Events` : ''}
                                                                                         {course.lms_link ? ' · LMS linked' : ''}
                                                                                         {course.include_in_gpa ? ' · Include GPA' : ' · Exclude GPA'}
-                                                                                        {course.hide_gpa ? ' · GPA hidden' : ''}
                                                                                     </p>
                                                                                 </li>
                                                                             ))}

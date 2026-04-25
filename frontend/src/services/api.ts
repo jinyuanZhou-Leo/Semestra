@@ -168,7 +168,6 @@ export interface Course {
     program?: Program;
     semester_id?: string;
     include_in_gpa?: boolean;
-    hide_gpa?: boolean;
     has_gradebook?: boolean;
     gradebook_revision?: number;
     has_lms_link?: boolean;
@@ -210,7 +209,6 @@ export type CourseCreatePayload = {
     program_id: string;
     semester_id?: string;
     include_in_gpa?: boolean;
-    hide_gpa?: boolean;
 };
 
 export type TabUpdatePayload = {

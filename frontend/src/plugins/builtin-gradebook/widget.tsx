@@ -1,6 +1,6 @@
-// input:  [course API, widget runtime contracts, dashboard stat iconography, builtin-gradebook shared GPA-percentage formatting, and shared business empty-state wrappers]
+// input:  [course API, Semester data context, widget runtime contracts, dashboard stat iconography, builtin-gradebook shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [builtin-gradebook summary widget component and widget definition]
-// pos:    [course-scoped read-only KPI widget using CSS-only responsive vertical layout, non-selectable stat tiles, and standardized unavailable empty states]
+// pos:    [course/semester-scoped read-only KPI widget using CSS-only responsive vertical layout, non-selectable stat tiles, and standardized unavailable empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -14,7 +14,8 @@ import { AppEmptyState } from '@/components/AppEmptyState';
 import api, { type Course } from '@/services/api';
 import type { WidgetDefinition, WidgetProps } from '@/plugin-system';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BUILTIN_GRADEBOOK_SUMMARY_WIDGET_TYPE, formatGradebookGpaPercentage } from './shared';
+import { useSemesterData } from '@/contexts/SemesterDataContext';
+import { BUILTIN_GRADEBOOK_SUMMARY_WIDGET_TYPE, buildSemesterGradebookSummary, formatGradebookGpaPercentage } from './shared';
 import { cn } from '@/lib/utils';
 
 interface SummaryTileProps {
@@ -45,7 +46,7 @@ const SummaryTile: React.FC<SummaryTileProps> = ({ label, icon, value, className
     </div>
 );
 
-const BuiltinGradebookSummaryWidget: React.FC<WidgetProps> = ({ courseId }) => {
+const CourseGradebookSummaryWidget: React.FC<Pick<WidgetProps, 'courseId'>> = ({ courseId }) => {
     const [course, setCourse] = React.useState<Course | null>(null);
     const [isLoading, setIsLoading] = React.useState(true);
 
@@ -150,6 +151,81 @@ const BuiltinGradebookSummaryWidget: React.FC<WidgetProps> = ({ courseId }) => {
                 />
             </div>
         </div>
+    );
+};
+
+const SemesterGradebookSummaryWidget: React.FC = () => {
+    const { semester, isLoading } = useSemesterData();
+
+    if (isLoading && !semester) {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-1.5 p-2.5">
+                <Skeleton className="min-h-0 flex-1 rounded-2xl" />
+                <Skeleton className="min-h-0 flex-1 rounded-2xl" />
+                <Skeleton className="min-h-0 flex-1 rounded-2xl" />
+            </div>
+        );
+    }
+
+    if (!semester) {
+        return (
+            <AppEmptyState
+                scenario="unavailable"
+                size="widget"
+                title="Gradebook unavailable"
+                description="Failed to load semester metrics."
+            />
+        );
+    }
+
+    const summary = buildSemesterGradebookSummary(semester.courses ?? []);
+
+    return (
+        <div className="flex h-full min-h-0 p-2.5">
+            <div className="flex h-full min-h-0 w-full flex-col gap-1.5">
+                <SummaryTile
+                    label="Credits"
+                    icon={<BookOpen className="h-3 w-3" aria-hidden="true" />}
+                    className="px-2 py-1.5 sm:px-2.5 sm:py-2 md:px-3 md:py-2.5"
+                    labelClassName="text-[10px] sm:text-[11px] md:text-xs"
+                    valueClassName="text-xs tabular-nums sm:text-sm md:text-base lg:text-lg"
+                    value={<span className="block leading-none">{summary.included_credits.toFixed(2)}</span>}
+                />
+                <SummaryTile
+                    label="GPA"
+                    icon={<GraduationCap className="h-3 w-3" aria-hidden="true" />}
+                    className="px-2 py-1.5 sm:px-2.5 sm:py-2 md:px-3 md:py-2.5"
+                    labelClassName="text-[10px] sm:text-[11px] md:text-xs"
+                    valueClassName="text-xs tabular-nums sm:text-sm md:text-base lg:text-lg"
+                    value={<span className="block leading-none">{summary.current_gpa === null ? 'N/A' : summary.current_gpa.toFixed(2)}</span>}
+                />
+                <SummaryTile
+                    label="GPA Percentage"
+                    icon={<Percent className="h-3 w-3" aria-hidden="true" />}
+                    className="px-2 py-1.5 sm:px-2.5 sm:py-2 md:px-3 md:py-2.5"
+                    labelClassName="text-[10px] sm:text-[11px] md:text-xs"
+                    valueClassName="text-xs tabular-nums sm:text-sm md:text-base lg:text-lg"
+                    value={<span className="block leading-none">{summary.current_percentage === null ? 'N/A' : formatGradebookGpaPercentage(summary.current_percentage)}</span>}
+                />
+            </div>
+        </div>
+    );
+};
+
+const BuiltinGradebookSummaryWidget: React.FC<WidgetProps> = ({ courseId, semesterId }) => {
+    if (courseId) {
+        return <CourseGradebookSummaryWidget courseId={courseId} />;
+    }
+    if (semesterId) {
+        return <SemesterGradebookSummaryWidget />;
+    }
+    return (
+        <AppEmptyState
+            scenario="unavailable"
+            size="widget"
+            title="Gradebook unavailable"
+            description="This widget requires a course or semester context."
+        />
     );
 };
 

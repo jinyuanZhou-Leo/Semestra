@@ -1,4 +1,4 @@
-// input:  [initial course fields (name/alias/category/custom color/credits/GPA flags), resolved Program default color metadata, LMS link state and available LMS courses, Program Home pin state, color picker UI, and auto-save callback]
+// input:  [initial course fields (name/alias/category/custom color/credits/include-in-GPA), resolved Program default color metadata, LMS link state and available LMS courses, Program Home pin state, color picker UI, and auto-save callback]
 // output: [`CourseSettingsPanel` component]
 // pos:    [Settings form section for editing per-course metadata, managing LMS linkage, and controlling whether this Course is pinned to Program Home with unpin confirmation]
 //
@@ -88,7 +88,6 @@ interface CourseSettingsPanelProps {
     color?: string | null;
     credits?: number;
     include_in_gpa?: boolean;
-    hide_gpa?: boolean;
   };
   resolvedDefaultColor?: string | null;
   lmsLink?: LmsCourseLinkSummary | null;
@@ -106,7 +105,6 @@ interface CourseSettingsPanelProps {
     color: string | null;
     credits: number;
     include_in_gpa: boolean;
-    hide_gpa: boolean;
   }) => Promise<void>;
   registerFlush?: (flush: () => Promise<void>) => void;
 }
@@ -134,7 +132,6 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   const [color, setColor] = useState(initialSettings?.color || automaticColor);
   const [credits, setCredits] = useState(String(initialSettings?.credits || ""));
   const [includeInGpa, setIncludeInGpa] = useState(initialSettings?.include_in_gpa ?? true);
-  const [hideGpa, setHideGpa] = useState(initialSettings?.hide_gpa ?? false);
   const [lmsSyncEnabled, setLmsSyncEnabled] = useState(lmsLink?.sync_enabled ?? true);
   const [isLmsBusy, setIsLmsBusy] = useState(false);
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
@@ -149,7 +146,6 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   const initialUseCustomColor = Boolean(initialSettings?.color);
   const initialCredits = String(initialSettings?.credits || "");
   const initialIncludeInGpa = initialSettings?.include_in_gpa ?? true;
-  const initialHideGpa = initialSettings?.hide_gpa ?? false;
   const savedSnapshot = useMemo(
     () => ({
       name: initialName,
@@ -159,14 +155,12 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       color: initialColor,
       credits: initialCredits,
       includeInGpa: initialIncludeInGpa,
-      hideGpa: initialHideGpa,
     }),
     [
       initialAlias,
       initialCategory,
       initialColor,
       initialCredits,
-      initialHideGpa,
       initialIncludeInGpa,
       initialName,
       initialUseCustomColor,
@@ -181,9 +175,8 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       color,
       credits,
       includeInGpa,
-      hideGpa,
     }),
-    [alias, category, color, credits, hideGpa, includeInGpa, name, useCustomColor]
+    [alias, category, color, credits, includeInGpa, name, useCustomColor]
   );
   const lastLoadedSnapshotRef = useRef(savedSnapshot);
 
@@ -196,8 +189,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       previousSnapshot.useCustomColor !== savedSnapshot.useCustomColor ||
       previousSnapshot.color !== savedSnapshot.color ||
       previousSnapshot.credits !== savedSnapshot.credits ||
-      previousSnapshot.includeInGpa !== savedSnapshot.includeInGpa ||
-      previousSnapshot.hideGpa !== savedSnapshot.hideGpa;
+      previousSnapshot.includeInGpa !== savedSnapshot.includeInGpa;
     const draftHasLocalChanges =
       previousSnapshot.name !== draftSnapshot.name ||
       previousSnapshot.alias !== draftSnapshot.alias ||
@@ -205,8 +197,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       previousSnapshot.useCustomColor !== draftSnapshot.useCustomColor ||
       previousSnapshot.color !== draftSnapshot.color ||
       previousSnapshot.credits !== draftSnapshot.credits ||
-      previousSnapshot.includeInGpa !== draftSnapshot.includeInGpa ||
-      previousSnapshot.hideGpa !== draftSnapshot.hideGpa;
+      previousSnapshot.includeInGpa !== draftSnapshot.includeInGpa;
     const incomingMatchesDraft =
       savedSnapshot.name === draftSnapshot.name &&
       savedSnapshot.alias === draftSnapshot.alias &&
@@ -214,8 +205,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       savedSnapshot.useCustomColor === draftSnapshot.useCustomColor &&
       savedSnapshot.color === draftSnapshot.color &&
       savedSnapshot.credits === draftSnapshot.credits &&
-      savedSnapshot.includeInGpa === draftSnapshot.includeInGpa &&
-      savedSnapshot.hideGpa === draftSnapshot.hideGpa;
+      savedSnapshot.includeInGpa === draftSnapshot.includeInGpa;
 
     lastLoadedSnapshotRef.current = savedSnapshot;
     if (!externalChanged) return;
@@ -228,7 +218,6 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
     setColor(savedSnapshot.color);
     setCredits(savedSnapshot.credits);
     setIncludeInGpa(savedSnapshot.includeInGpa);
-    setHideGpa(savedSnapshot.hideGpa);
   }, [draftSnapshot, savedSnapshot]);
 
   useEffect(() => {
@@ -255,7 +244,6 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
         color: snapshot.useCustomColor ? snapshot.color : null,
         credits: parseFloat(snapshot.credits) || 0,
         include_in_gpa: snapshot.includeInGpa,
-        hide_gpa: snapshot.hideGpa,
       });
     },
     onError: (error) => {
@@ -458,18 +446,6 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
                 id={`${fieldId}-include-gpa`}
                 checked={includeInGpa}
                 onCheckedChange={setIncludeInGpa}
-                className="shrink-0"
-              />
-            </Field>
-            <Field orientation="responsive">
-              <FieldContent>
-                <FieldLabel htmlFor={`${fieldId}-hide-gpa`}>Hide GPA Info</FieldLabel>
-                <FieldDescription>Hide GPA details in course-level views.</FieldDescription>
-              </FieldContent>
-              <Switch
-                id={`${fieldId}-hide-gpa`}
-                checked={hideGpa}
-                onCheckedChange={setHideGpa}
                 className="shrink-0"
               />
             </Field>
