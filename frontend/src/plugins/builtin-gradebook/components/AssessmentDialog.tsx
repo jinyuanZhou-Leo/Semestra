@@ -26,7 +26,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     Select,
@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 import type {
     CourseGradebook,
@@ -123,6 +124,22 @@ export const AssessmentDialog: React.FC<AssessmentDialogProps> = ({
 }) => {
     const setField = <K extends keyof AssessmentDraft>(field: K, value: AssessmentDraft[K]) => {
         onDraftChange((current) => current ? { ...current, [field]: value } : current);
+    };
+
+    const handleScoreModeChange = (nextMode: AssessmentDraft['score_mode']) => {
+        if (nextMode === 'percent' && draft.score_mode === 'points') {
+            const earned = parseFloat(draft.points_earned);
+            const possible = parseFloat(draft.points_possible);
+            if (Number.isFinite(earned) && Number.isFinite(possible) && possible > 0) {
+                onDraftChange((current) => current ? {
+                    ...current,
+                    score_mode: 'percent',
+                    score: String(parseFloat((earned / possible * 100).toFixed(2))),
+                } : current);
+                return;
+            }
+        }
+        setField('score_mode', nextMode);
     };
     const dueDate = parseDraftDate(draft.due_date);
     const canImportFromLms = !draft.id && hasLmsLink && lmsAssignments.length > 0;
@@ -249,7 +266,7 @@ export const AssessmentDialog: React.FC<AssessmentDialogProps> = ({
                             </div>
                         ) : (
                             <ScrollArea className="h-full min-h-0 flex-1">
-                                <div className="space-y-3 pr-3">
+                                    <div className="space-y-3 px-1">
                                     <h3 className="text-sm font-medium text-foreground">Details</h3>
                                     <div className="grid gap-3 sm:grid-cols-2">
                                         <div className="space-y-2 sm:col-span-2">
@@ -312,7 +329,7 @@ export const AssessmentDialog: React.FC<AssessmentDialogProps> = ({
 
                                 <Separator className="my-6" />
 
-                                <div className="space-y-3">
+                                    <div className="space-y-3 px-1">
                                     <h3 className="text-sm font-medium text-foreground">Grading</h3>
                                     <div className="grid gap-3 sm:grid-cols-2">
                                         <div className="space-y-2">
@@ -320,53 +337,36 @@ export const AssessmentDialog: React.FC<AssessmentDialogProps> = ({
                                             <Input value={draft.weight} inputMode="decimal" onChange={(event) => setField('weight', event.target.value)} placeholder="20" />
                                         </div>
                                         <div className="space-y-2 sm:col-span-2">
-                                            <Label>Score input</Label>
-                                            <RadioGroup
-                                                value={draft.score_mode}
-                                                onValueChange={(value) => setField('score_mode', value as AssessmentDraft['score_mode'])}
-                                                className="grid gap-2 sm:grid-cols-2"
-                                            >
-                                                <label
-                                                    className={cn(
-                                                        'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition-colors',
-                                                        draft.score_mode === 'percent'
-                                                            ? 'border-primary bg-primary/5'
-                                                            : 'border-border/70 hover:bg-muted/30',
-                                                    )}
-                                                >
-                                                    <RadioGroupItem value="percent" />
-                                                    <span className="text-sm font-medium text-foreground">Percentage</span>
-                                                </label>
-                                                <label
-                                                    className={cn(
-                                                        'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition-colors',
-                                                        draft.score_mode === 'points'
-                                                            ? 'border-primary bg-primary/5'
-                                                            : 'border-border/70 hover:bg-muted/30',
-                                                    )}
-                                                >
-                                                    <RadioGroupItem value="points" />
-                                                    <span className="text-sm font-medium text-foreground">Points</span>
-                                                </label>
-                                            </RadioGroup>
-                                        </div>
-                                        {draft.score_mode === 'points' ? (
-                                            <>
-                                                <div className="space-y-2">
-                                                    <Label>Points earned</Label>
-                                                    <Input value={draft.points_earned} inputMode="decimal" onChange={(event) => setField('points_earned', event.target.value)} placeholder="18" />
+                                                <div className="flex items-center justify-between">
+                                                    <Label>Score</Label>
+                                                    <ToggleGroup
+                                                        type="single"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        value={draft.score_mode}
+                                                        onValueChange={(value) => {
+                                                            if (value) handleScoreModeChange(value as AssessmentDraft['score_mode']);
+                                                        }}
+                                                    >
+                                                        <ToggleGroupItem value="percent">%</ToggleGroupItem>
+                                                        <ToggleGroupItem value="points">pts</ToggleGroupItem>
+                                                    </ToggleGroup>
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label>Points possible</Label>
-                                                    <Input value={draft.points_possible} inputMode="decimal" onChange={(event) => setField('points_possible', event.target.value)} placeholder="20" />
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <div className="space-y-2 sm:col-span-2">
-                                                <Label>Score (%)</Label>
-                                                <Input value={draft.score} inputMode="decimal" onChange={(event) => setField('score', event.target.value)} />
+                                                {draft.score_mode === 'points' ? (
+                                                    <div className="grid gap-3 sm:grid-cols-2">
+                                                        <div className="space-y-2">
+                                                            <Label>Points earned</Label>
+                                                            <Input value={draft.points_earned} inputMode="decimal" onChange={(event) => setField('points_earned', event.target.value)} placeholder="18" />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label>Points possible</Label>
+                                                            <Input value={draft.points_possible} inputMode="decimal" onChange={(event) => setField('points_possible', event.target.value)} placeholder="20" />
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <Input value={draft.score} inputMode="decimal" onChange={(event) => setField('score', event.target.value)} placeholder="90" />
+                                                )}
                                             </div>
-                                        )}
                                     </div>
                                 </div>
                             </ScrollArea>
