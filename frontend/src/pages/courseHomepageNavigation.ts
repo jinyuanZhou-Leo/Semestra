@@ -1,6 +1,6 @@
-// input:  [current Course Homepage active tab id, visible tab list, route-state preferred tab type, and builtin-tab readiness]
+// input:  [current Course Homepage active tab id, visible tab list, route-state preferred tab type, pending preferred-tab readiness, and builtin-tab readiness]
 // output: [`resolveRequestedCourseTabId()` helper for Course Homepage tab restoration]
-// pos:    [Route-local tab-selection helper that preserves the current tab type across sibling-course navigation when the target course exposes the same tab]
+// pos:    [Route-local tab-selection helper that preserves requested/current tab types across course navigation without settling on fallback tabs before route-target runtime tabs finish loading]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -16,6 +16,7 @@ interface ResolveRequestedCourseTabIdOptions {
     requestedTabType: string | null;
     visibleTabs: CourseHomepageVisibleTab[];
     areBuiltinTabsReady: boolean;
+    isRequestedTabPending?: boolean;
 }
 
 export const resolveRequestedCourseTabId = ({
@@ -23,6 +24,7 @@ export const resolveRequestedCourseTabId = ({
     requestedTabType,
     visibleTabs,
     areBuiltinTabsReady,
+    isRequestedTabPending = false,
 }: ResolveRequestedCourseTabIdOptions): string | null => {
     if (visibleTabs.length === 0) {
         return '';
@@ -40,6 +42,9 @@ export const resolveRequestedCourseTabId = ({
         const requestedTab = visibleTabs.find((tab) => tab.type === requestedTabType);
         if (requestedTab) {
             return requestedTab.id;
+        }
+        if (isRequestedTabPending) {
+            return null;
         }
     }
 

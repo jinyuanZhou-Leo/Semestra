@@ -248,11 +248,16 @@ interface TableShellProps {
     children: ReactNode;
     minWidthClassName?: string;
     className?: string;
+    disableOverflow?: boolean;
 }
 
-function TableShell({ children, minWidthClassName, className }: TableShellProps) {
+function TableShell({ children, minWidthClassName, className, disableOverflow }: TableShellProps) {
     return (
-        <div className={cn('w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-md border border-border/70', className)}>
+        <div className={cn(
+            'w-full min-w-0 max-w-full rounded-md border border-border/70',
+            !disableOverflow && 'overflow-x-auto overflow-y-hidden overscroll-x-contain',
+            className,
+        )}>
             <div className={cn('min-w-full', minWidthClassName)}>
                 {children}
             </div>
@@ -530,12 +535,17 @@ export function DataTable<T>({
     const tableMarkup = (
         <div
             data-slot="data-table-scroll-area"
-            className={cn('min-w-0', hasBoundedBodyHeight && 'min-h-0 overflow-x-hidden overflow-y-auto')}
+            className={cn(
+            'min-w-0',
+            hasBoundedBodyHeight && !freezeHeader && 'min-h-0 overflow-x-hidden overflow-y-auto',
+            hasBoundedBodyHeight && freezeHeader && 'min-h-0 overflow-auto overscroll-x-contain',
+        )}
             style={scrollAreaStyle}
         >
             <TableShell
                 minWidthClassName={minWidthClassName}
                 className={cn(pagination && 'rounded-none border-0', shellClassName)}
+            disableOverflow={hasBoundedBodyHeight && freezeHeader}
             >
                 <table
                     data-slot="table"

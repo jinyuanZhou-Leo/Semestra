@@ -8,7 +8,7 @@
 
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     courseKeys,
@@ -359,9 +359,17 @@ const CourseHomepageContent: React.FC = () => {
     );
     const activeTabType = activeTab?.type;
     const courseId = course?.id;
+    const courseDetailFetchCount = useIsFetching({
+        queryKey: courseId ? courseKeys.detail(courseId) : courseKeys.detail('unknown'),
+    });
     const requestedTabType = typeof (location.state as CourseHomepageLocationState | null)?.preferredTabType === 'string'
         ? (location.state as CourseHomepageLocationState).preferredTabType ?? null
         : null;
+    const isRequestedTabPending = Boolean(
+        requestedTabType
+        && courseDetailFetchCount > 0
+        && !visibleTabs.some((tab) => tab.type === requestedTabType)
+    );
     const activeTabLoadState = useTabPluginLoadState(activeTabType);
     const isSettingsTabActive = activeTabType === HOMEPAGE_SETTINGS_TAB_TYPE;
     useVisibleTabSettingsPreload({
@@ -604,11 +612,12 @@ const CourseHomepageContent: React.FC = () => {
             requestedTabType,
             visibleTabs,
             areBuiltinTabsReady,
+            isRequestedTabPending,
         });
         if (nextTabId && nextTabId !== activeTabId) {
             setActiveTabId(nextTabId);
         }
-    }, [activeTabId, areBuiltinTabsReady, requestedTabType, visibleTabs]);
+    }, [activeTabId, areBuiltinTabsReady, isRequestedTabPending, requestedTabType, visibleTabs]);
 
     const pluginSettingsSections = useMemo(() => {
         const pluginActivations = course?.plugin_activations ?? parentSemesterQuery.data?.plugin_activations ?? [];

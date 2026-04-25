@@ -1,6 +1,6 @@
 // input:  [course homepage tab-selection helper and Vitest assertions]
-// output: [route-local regression coverage for sibling-course tab restoration decisions]
-// pos:    [Unit test file for Course Homepage same-tab restoration across sibling-course navigation]
+// output: [route-local regression coverage for sibling-course/requested-tab restoration decisions]
+// pos:    [Unit test file for Course Homepage tab restoration across course navigation, including pending preferred-tab runtime loading]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -45,6 +45,33 @@ describe('resolveRequestedCourseTabId', () => {
             ],
             areBuiltinTabsReady: true,
         })).toBe('course:4:dashboard');
+    });
+
+    it('waits for a requested tab while the destination course detail is still refreshing', () => {
+        expect(resolveRequestedCourseTabId({
+            activeTabId: '',
+            requestedTabType: 'builtin-gradebook',
+            visibleTabs: [
+                { id: 'course:4:dashboard', type: 'builtin-dashboard' },
+                { id: 'course:4:settings', type: 'builtin-setting' },
+            ],
+            areBuiltinTabsReady: true,
+            isRequestedTabPending: true,
+        })).toBeNull();
+    });
+
+    it('selects the requested tab once the destination course runtime tabs arrive', () => {
+        expect(resolveRequestedCourseTabId({
+            activeTabId: '',
+            requestedTabType: 'builtin-gradebook',
+            visibleTabs: [
+                { id: 'course:4:dashboard', type: 'builtin-dashboard' },
+                { id: 'course:4:builtin-gradebook', type: 'builtin-gradebook' },
+                { id: 'course:4:settings', type: 'builtin-setting' },
+            ],
+            areBuiltinTabsReady: true,
+            isRequestedTabPending: false,
+        })).toBe('course:4:builtin-gradebook');
     });
 
     it('waits for builtin tabs before selecting a fallback tab', () => {
