@@ -898,18 +898,13 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                             <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
                                 {showWeightMismatchState ? (
                                     <span className="text-rose-600 dark:text-rose-400">N/A</span>
-                                ) : planMode && whatIfResult ? (
-                                    <span className="text-amber-600 dark:text-amber-400">
+                                ) : (
+                                    <span className={planMode ? 'text-amber-600 dark:text-amber-400' : undefined}>
                                         <AnimatedNumber
-                                            value={whatIfResult.projected_percentage}
+                                            value={planMode && whatIfResult ? whatIfResult.projected_percentage : course.grade_percentage}
                                             format={formatGradebookGpaPercentage}
                                         />
                                     </span>
-                                ) : (
-                                    <AnimatedNumber
-                                        value={course.grade_percentage}
-                                        format={formatGradebookGpaPercentage}
-                                    />
                                 )}
                             </div>
                             {showWeightMismatchState ? (
@@ -946,20 +941,14 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                             <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
                                 {showWeightMismatchState ? (
                                     <span className="text-rose-600 dark:text-rose-400">N/A</span>
-                                ) : planMode && whatIfResult ? (
-                                    <span className="text-amber-600 dark:text-amber-400">
+                                ) : (
+                                    <span className={planMode ? 'text-amber-600 dark:text-amber-400' : undefined}>
                                         <AnimatedNumber
-                                            value={whatIfResult.projected_gpa}
+                                            value={planMode && whatIfResult ? whatIfResult.projected_gpa : course.grade_scaled}
                                             format={(v) => v.toFixed(2)}
-                                            rainbowThreshold={3.8}
+                                            rainbowThreshold={planMode ? undefined : 3.8}
                                         />
                                     </span>
-                                ) : (
-                                    <AnimatedNumber
-                                        value={course.grade_scaled}
-                                            format={(v) => v.toFixed(2)}
-                                            rainbowThreshold={3.8}
-                                        />
                                 )}
                             </div>
                             {showWeightMismatchState ? (
@@ -1250,6 +1239,8 @@ const SemesterGradebookTab: React.FC<TabProps> = ({ semesterId }) => {
         targetInputMode: 'gpa',
         targetDraft: '3.7',
     }));
+    const [planModeIntroOpen, setPlanModeIntroOpen] = React.useState(false);
+    const [planModeExitOpen, setPlanModeExitOpen] = React.useState(false);
 
     if (!semesterId) {
         return (
@@ -1333,6 +1324,24 @@ const SemesterGradebookTab: React.FC<TabProps> = ({ semesterId }) => {
         });
     };
 
+    const enterPlanMode = () => {
+        updatePlanModeState({ planMode: true });
+        setPlanModeIntroOpen(false);
+    };
+
+    const exitPlanMode = () => {
+        updatePlanModeState({ planMode: false, whatIfDrafts: {} });
+        setPlanModeExitOpen(false);
+    };
+
+    const handlePlanModeCheckedChange = (checked: boolean) => {
+        if (checked) {
+            setPlanModeIntroOpen(true);
+            return;
+        }
+        setPlanModeExitOpen(true);
+    };
+
     const handleAutoFill = () => {
         if (targetPercentage === null) {
             toast.error(`Enter a ${planModeState.targetInputMode === 'gpa' ? 'GPA' : 'percentage'} target before running Auto-fill.`);
@@ -1341,6 +1350,7 @@ const SemesterGradebookTab: React.FC<TabProps> = ({ semesterId }) => {
         const nextDrafts = { ...planModeState.whatIfDrafts };
         courses.forEach((course) => {
             if (course.include_in_gpa === false || Number(course.credits) <= 0) return;
+            if (Number(course.grade_percentage || 0) > 0) return;
             nextDrafts[course.id] = String(Math.max(0, Math.min(100, targetPercentage)));
         });
         updatePlanModeState({ whatIfDrafts: nextDrafts });
@@ -1417,7 +1427,7 @@ const SemesterGradebookTab: React.FC<TabProps> = ({ semesterId }) => {
             cellClassName: 'py-3',
             cell: (course) => (
                 <div className="flex min-h-8 items-center justify-end">
-                    {planModeState.planMode && course.include_in_gpa !== false && Number(course.credits) > 0 ? (
+                    {planModeState.planMode && course.include_in_gpa !== false && Number(course.credits) > 0 && Number(course.grade_percentage || 0) === 0 ? (
                         <Input
                             aria-label={`${course.name} what-if grade`}
                             className="ml-auto h-8 w-24 text-right tabular-nums border-amber-400/80 bg-amber-50/80 text-amber-950 focus-visible:bg-background dark:border-amber-500/50 dark:bg-amber-950/20 dark:text-amber-50"
@@ -1519,7 +1529,7 @@ const SemesterGradebookTab: React.FC<TabProps> = ({ semesterId }) => {
                             <Switch
                                 id="semester-gradebook-plan-mode"
                                 checked={planModeState.planMode}
-                                onCheckedChange={(checked) => updatePlanModeState({ planMode: checked })}
+                                onCheckedChange={handlePlanModeCheckedChange}
                                 className="data-checked:bg-amber-500 data-unchecked:bg-slate-300/80 dark:data-unchecked:bg-slate-700"
                                 aria-label="Toggle Plan Mode"
                             />
@@ -1597,6 +1607,46 @@ const SemesterGradebookTab: React.FC<TabProps> = ({ semesterId }) => {
                     />
                 </div>
             </section>
+
+            <Dialog open={planModeIntroOpen} onOpenChange={setPlanModeIntroOpen}>
+                <DialogContent className="sm:max-w-[440px]">
+                    <DialogHeader>
+                        <DialogTitle>Enter Plan Mode</DialogTitle>
+                        <DialogDescription>
+                            Simulate <strong>What If</strong> scores on ungraded courses to project your semester GPA — no real data is modified.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ul className="space-y-1.5 text-sm text-muted-foreground list-disc pl-4">
+                        <li><strong>Courses with grades</strong> stay locked to keep results accurate.</li>
+                        <li>Set a target in <strong>GPA</strong> or <strong>GPA Percentage</strong>, then tap <strong>Auto-fill</strong>.</li>
+                    </ul>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setPlanModeIntroOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="button" className="bg-amber-500 text-amber-950 hover:bg-amber-400" onClick={enterPlanMode}>
+                            Enter Plan Mode
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <AlertDialog open={planModeExitOpen} onOpenChange={setPlanModeExitOpen}>
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Leave Plan Mode?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            What If scores are temporary and will not be saved after you leave Plan Mode.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Keep Planning</AlertDialogCancel>
+                        <AlertDialogAction variant="destructive" onClick={exitPlanMode}>
+                            Leave Plan Mode
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };

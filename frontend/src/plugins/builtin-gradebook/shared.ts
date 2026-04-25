@@ -403,27 +403,21 @@ const getIncludedSemesterCourses = (courses: Course[]) => (
     courses.filter((course) => course.include_in_gpa !== false && Number(course.credits) > 0)
 );
 
+const courseHasGrade = (course: Course) => Number(course.grade_percentage || 0) > 0;
+
 export const buildSemesterGradebookSummary = (courses: Course[]): ComputedSemesterGradebookSummary => {
     const includedCourses = getIncludedSemesterCourses(courses);
     const includedCredits = roundValue(includedCourses.reduce((sum, course) => sum + Number(course.credits || 0), 0), 3);
-
-    if (includedCredits <= 0) {
-        return {
-            current_percentage: null,
-            current_gpa: null,
-            included_credits: 0,
-            included_course_count: 0,
-            excluded_course_count: courses.length,
-        };
-    }
+    const gradedCourses = includedCourses.filter(courseHasGrade);
+    const gradedCredits = roundValue(gradedCourses.reduce((sum, course) => sum + Number(course.credits || 0), 0), 3);
 
     return {
-        current_percentage: roundValue(
-            includedCourses.reduce((sum, course) => sum + (Number(course.grade_percentage || 0) * Number(course.credits || 0)), 0) / includedCredits,
+        current_percentage: gradedCredits <= 0 ? null : roundValue(
+            gradedCourses.reduce((sum, course) => sum + Number(course.grade_percentage) * Number(course.credits), 0) / gradedCredits,
             3,
         ),
-        current_gpa: roundValue(
-            includedCourses.reduce((sum, course) => sum + (Number(course.grade_scaled || 0) * Number(course.credits || 0)), 0) / includedCredits,
+        current_gpa: gradedCredits <= 0 ? null : roundValue(
+            gradedCourses.reduce((sum, course) => sum + Number(course.grade_scaled || 0) * Number(course.credits), 0) / gradedCredits,
             3,
         ),
         included_credits: includedCredits,
@@ -453,17 +447,21 @@ export const buildSemesterGradebookPlanResult = (
 
     const projectedPercentage = roundValue(
         includedCourses.reduce((sum, course) => {
-            const rawScore = whatIfScores[course.id];
-            const score = Number.isFinite(rawScore) ? clampScore(rawScore) : Number(course.grade_percentage || 0);
+            const hasGrade = courseHasGrade(course);
+            const rawScore = !hasGrade ? whatIfScores[course.id] : undefined;
+            const score = rawScore !== undefined && Number.isFinite(rawScore)
+                ? clampScore(rawScore)
+                : Number(course.grade_percentage || 0);
             return sum + score * Number(course.credits || 0);
         }, 0) / includedCredits,
         3,
     );
     const projectedGpa = roundValue(
         includedCourses.reduce((sum, course) => {
-            const rawScore = whatIfScores[course.id];
-            const hasWhatIf = Number.isFinite(rawScore);
-            const score = hasWhatIf ? clampScore(rawScore) : Number(course.grade_percentage || 0);
+            const hasGrade = courseHasGrade(course);
+            const rawScore = !hasGrade ? whatIfScores[course.id] : undefined;
+            const hasWhatIf = rawScore !== undefined && Number.isFinite(rawScore);
+            const score = hasWhatIf ? clampScore(rawScore!) : Number(course.grade_percentage || 0);
             const gpa = hasWhatIf
                 ? calculateGradebookGpa(score, scalingTable) ?? Number(course.grade_scaled || 0)
                 : Number(course.grade_scaled || 0);
