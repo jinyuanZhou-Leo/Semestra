@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, Clock3 } from 'lucide-react';
+import { AlertCircle, CalendarOff, Clock3 } from 'lucide-react';
 import api from '@/services/api';
 import type { WidgetDefinition, WidgetProps } from '@/plugin-system';
 import { queryKeys } from '@/services/queryKeys';
@@ -141,8 +141,16 @@ const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseI
 
   if (isOutOfSemesterRange) {
     return (
-      <div className="flex h-full items-center justify-center p-3 text-center text-sm text-muted-foreground">
-        Today ({dateFormatter.format(today)}) is outside this semester range.
+      <div className="flex h-full flex-col items-center justify-center gap-2.5 px-4 py-3 text-balance text-center">
+        <div className="flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+          <CalendarOff className="size-5" aria-hidden="true" />
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-[15px] font-semibold leading-tight">Outside Semester</p>
+          <p className="max-w-[16rem] text-[13px] leading-snug text-muted-foreground">
+            {dateFormatter.format(today)} is outside the date range for this semester.
+          </p>
+        </div>
       </div>
     );
   }
