@@ -111,6 +111,77 @@ class BackupImportExportTests(unittest.TestCase):
         database.engine.dispose()
         self.tempdir.cleanup()
 
+    def test_import_merges_duplicate_lms_sources(self) -> None:
+        backup = schemas.UserDataImport(
+            version="2.2.3",
+            settings=schemas.UserSettingsExport(nickname="Source"),
+            lms_integrations=[
+                schemas.LmsIntegrationExport(
+                    id="canvas-a",
+                    display_name="Canvas Main",
+                    provider="canvas",
+                    config={"base_url": "https://canvas.example.edu/"},
+                    credentials={"personal_access_token": "token-1"},
+                ),
+                schemas.LmsIntegrationExport(
+                    id="canvas-b",
+                    display_name="Canvas Duplicate",
+                    provider="canvas",
+                    config={"base_url": "https://canvas.example.edu"},
+                    credentials={"personal_access_token": "token-2"},
+                ),
+            ],
+            programs=[
+                schemas.ProgramExport(
+                    id="program-1",
+                    name="Engineering",
+                    lms_integration_id="canvas-a",
+                    courses=[
+                        schemas.CourseExport(
+                            id="course-1",
+                            name="MIE200",
+                            lms_link=schemas.LmsCourseLinkExport(
+                                lms_integration_id="canvas-b",
+                                external_course_id="course-1",
+                                external_course_code="MIE200",
+                                external_name="MIE200 Canvas",
+                            ),
+                        )
+                    ],
+                )
+            ],
+        )
+
+        result = asyncio.run(
+            main.import_user_data(
+                data=backup,
+                conflict_mode="skip",
+                include_settings=False,
+                db=self.db,
+                current_user=self.target_user,
+            )
+        )
+
+        self.assertEqual(result["imported"]["lms_integrations"], 1)
+        restored_integrations = (
+            self.db.query(models.LmsIntegration)
+            .filter(models.LmsIntegration.user_id == self.target_user.id)
+            .all()
+        )
+        self.assertEqual(len(restored_integrations), 1)
+        restored_program = (
+            self.db.query(models.Program)
+            .filter(models.Program.owner_id == self.target_user.id, models.Program.name == "Engineering")
+            .one()
+        )
+        restored_course = (
+            self.db.query(models.Course)
+            .filter(models.Course.program_id == restored_program.id, models.Course.name == "MIE200")
+            .one()
+        )
+        self.assertEqual(restored_program.lms_integration_id, restored_integrations[0].id)
+        self.assertEqual(restored_course.lms_link.lms_integration_id, restored_integrations[0].id)
+
     def test_export_then_import_preserves_current_backup_features(self) -> None:
         integration = lms_service.create_integration(
             self.db,
@@ -183,13 +254,13 @@ class BackupImportExportTests(unittest.TestCase):
         crud.upsert_program_plugin_installation(
             self.db,
             program.id,
-            "course-resources",
+            "builtin-course-resources",
             schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
         )
         crud.upsert_course_plugin_activation(
             self.db,
             program_course.id,
-            "course-resources",
+            "builtin-course-resources",
             schemas.CoursePluginActivationUpsertRequest(is_enabled=True),
         )
 
@@ -200,7 +271,7 @@ class BackupImportExportTests(unittest.TestCase):
         )
         crud.create_tab(
             self.db,
-            schemas.TabCreate(tab_type="course-resources", settings='{"layout":"grid"}', order_index=1, is_removable=True, is_draggable=True),
+            schemas.TabCreate(tab_type="builtin-course-resources", settings='{"layout":"grid"}', order_index=1, is_removable=True, is_draggable=True),
             course_id=semester_course.id,
         )
 
@@ -344,7 +415,7 @@ class BackupImportExportTests(unittest.TestCase):
         self.assertEqual(exported.settings.background_plugin_preload, False)
         self.assertEqual(len(exported.lms_integrations), 1)
         self.assertEqual(len(exported.programs[0].courses), 1)
-        self.assertEqual(exported.programs[0].courses[0].plugin_activations[0].plugin_id, "course-resources")
+        self.assertEqual(exported.programs[0].courses[0].plugin_activations[0].plugin_id, "builtin-course-resources")
         self.assertEqual(len(exported.programs[0].semesters[0].courses[0].resource_files), 2)
         self.assertEqual(len(exported.programs[0].semesters[0].todo.tasks), 1)
 
@@ -397,7 +468,7 @@ class BackupImportExportTests(unittest.TestCase):
         self.assertTrue(restored_program_course_activation.is_enabled)
         self.assertEqual(
             restored_program_course_activation.program_plugin_installation.plugin_id,
-            "course-resources",
+            "builtin-course-resources",
         )
 
         restored_semester_course = (

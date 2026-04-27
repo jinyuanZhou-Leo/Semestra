@@ -683,18 +683,44 @@ def _import_lms_integrations(
     current_user: models.User,
     payloads: list[schemas.LmsIntegrationExport],
     now_utc_iso: Callable[[], str],
-) -> dict[str, str]:
+) -> tuple[dict[str, str], int]:
     integration_id_map: dict[str, str] = {}
+    integration_by_source: dict[tuple[str, str], models.LmsIntegration] = {}
+    imported_count = 0
+
+    existing_rows = (
+        db.query(models.LmsIntegration)
+        .filter(models.LmsIntegration.user_id == current_user.id)
+        .order_by(models.LmsIntegration.created_at.asc(), models.LmsIntegration.id.asc())
+        .all()
+    )
+    for row in existing_rows:
+        try:
+            provider_impl = lms_service.get_lms_provider(row.provider)
+            config = provider_impl.normalize_integration_config(json.loads(row.config_json or "{}"))
+        except Exception:
+            continue
+        config_key = json.dumps(config, separators=(",", ":"), sort_keys=True)
+        integration_by_source.setdefault((provider_impl.provider, config_key), row)
+
     for integration_data in payloads:
         provider_impl = lms_service.get_lms_provider(integration_data.provider)
         config = provider_impl.normalize_integration_config(integration_data.config)
+        config_key = json.dumps(config, separators=(",", ":"), sort_keys=True)
+        source_key = (provider_impl.provider, config_key)
+        existing_row = integration_by_source.get(source_key)
+        if existing_row is not None:
+            if integration_data.id:
+                integration_id_map[integration_data.id] = existing_row.id
+            continue
+
         credentials = provider_impl.normalize_integration_credentials(integration_data.credentials)
         row = models.LmsIntegration(
             user_id=current_user.id,
             display_name=integration_data.display_name,
             provider=provider_impl.provider,
             status=(integration_data.status or "connected").strip() or "connected",
-            config_json=json.dumps(config, separators=(",", ":"), sort_keys=True),
+            config_json=config_key,
             credentials_encrypted=encrypt_credentials(credentials),
             last_checked_at=integration_data.last_checked_at,
             last_error_code=integration_data.last_error.code if integration_data.last_error else None,
@@ -705,9 +731,11 @@ def _import_lms_integrations(
         db.add(row)
         db.commit()
         db.refresh(row)
+        integration_by_source[source_key] = row
+        imported_count += 1
         if integration_data.id:
             integration_id_map[integration_data.id] = row.id
-    return integration_id_map
+    return integration_id_map, imported_count
 
 
 def import_user_data(
@@ -741,7 +769,7 @@ def import_user_data(
         update_data["user_setting"] = json.dumps(user_setting)
         crud.update_user(db, current_user.id, schemas.UserUpdate(**update_data))
 
-    integration_id_map = _import_lms_integrations(
+    integration_id_map, imported_lms_integrations = _import_lms_integrations(
         db,
         current_user=current_user,
         payloads=data.lms_integrations,
@@ -875,7 +903,7 @@ def import_user_data(
             "programs": imported_programs,
             "semesters": imported_semesters,
             "courses": imported_courses,
-            "lms_integrations": len(data.lms_integrations),
+            "lms_integrations": imported_lms_integrations,
         },
         "skipped": {
             "programs": skipped_programs,
