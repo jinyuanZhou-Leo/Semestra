@@ -67,10 +67,11 @@ const ALLOWED_ATTRS = new Set([
   'rel',
 ]);
 
-const SAFE_URL_PROTOCOLS = new Set([
+export const SAFE_URL_PROTOCOLS = new Set([
   'http:',
   'https:',
   'mailto:',
+  'tel:',
 ]);
 
 const HTML_TAG_PATTERN = /<\/?[a-z][\s\S]*>/i;
@@ -80,7 +81,7 @@ interface SanitizeOptions {
   allowedDataAttrs?: Set<string>;
 }
 
-const isSafeHref = (value: string) => {
+export const isSafeHref = (value: string) => {
   if (!value) return false;
   try {
     const parsed = new URL(value, 'https://semestra.local');

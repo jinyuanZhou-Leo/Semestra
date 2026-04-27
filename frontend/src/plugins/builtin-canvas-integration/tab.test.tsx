@@ -44,6 +44,14 @@ vi.mock('@/contexts/CourseDataContext', () => ({
 
 vi.mock('@/lib/html', () => ({
     sanitizeCanvasHtmlFragment: (value: string) => value,
+    isSafeHref: (value: string) => {
+        try {
+            const parsed = new URL(value, 'https://semestra.local');
+            return ['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol);
+        } catch {
+            return false;
+        }
+    },
 }));
 
 const renderCanvasTab = (visibleTabs: PluginHostTabLike[] = [{ id: 'gradebook-tab', type: 'builtin-gradebook', title: 'Gradebook' }]) => {

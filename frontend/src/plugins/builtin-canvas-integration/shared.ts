@@ -6,6 +6,8 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
+import { isSafeHref } from '@/lib/html';
+
 export const BUILTIN_CANVAS_INTEGRATION_PLUGIN_ID = 'builtin-canvas-integration';
 export const BUILTIN_CANVAS_PAGES_TAB_TYPE = 'builtin-canvas-integration';
 
@@ -26,29 +28,22 @@ const extractPageRefFromPath = (path: string, courseExternalId: string) => {
     return decodeURIComponent(match[1].replace(/[?#].*$/, ''));
 };
 
-const DANGEROUS_HREF_SCHEMES = /^(javascript|data|vbscript|file):/i;
-const SAFE_ABSOLUTE_HREF_SCHEMES = /^(https?:|mailto:|tel:)/i;
+const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
 
 export const resolveCanvasHref = (href: string, canvasOrigin?: string | null) => {
     const normalizedHref = href.trim();
     if (!normalizedHref) {
         return null;
     }
-    if (DANGEROUS_HREF_SCHEMES.test(normalizedHref)) {
-        return null;
-    }
-    if (SAFE_ABSOLUTE_HREF_SCHEMES.test(normalizedHref)) {
-        return normalizedHref;
+    if (ABSOLUTE_URL_PATTERN.test(normalizedHref)) {
+        return isSafeHref(normalizedHref) ? normalizedHref : null;
     }
     if (!canvasOrigin) {
         return null;
     }
     try {
-        const resolved = new URL(normalizedHref, canvasOrigin);
-        if (DANGEROUS_HREF_SCHEMES.test(resolved.protocol)) {
-            return null;
-        }
-        return resolved.toString();
+        const resolved = new URL(normalizedHref, canvasOrigin).toString();
+        return isSafeHref(resolved) ? resolved : null;
     } catch {
         return null;
     }
