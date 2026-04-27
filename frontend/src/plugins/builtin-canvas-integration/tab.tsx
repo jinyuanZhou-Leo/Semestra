@@ -24,6 +24,7 @@ import {
     CANVAS_QUERY_OPTIONS,
     EMPTY_ANNOUNCEMENT_ITEMS,
     EMPTY_ASSIGNMENT_ITEMS,
+    EMPTY_GRADE_ITEMS,
     EMPTY_MODULE_ITEMS,
     EMPTY_PAGE_ITEMS,
     EMPTY_QUIZ_ITEMS,
@@ -106,6 +107,8 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
 
         let frameId: number | null = null;
         let resizeObserver: ResizeObserver | null = null;
+        let mutationObserver: MutationObserver | null = null;
+        let observedHeader: HTMLElement | null = null;
 
         const updateRailStickyTop = () => {
             const workspaceHeader = document.querySelector<HTMLElement>('.sticky-page-header');
@@ -125,10 +128,34 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
             });
         };
 
-        const workspaceHeader = document.querySelector<HTMLElement>('.sticky-page-header');
-        if (workspaceHeader && typeof ResizeObserver !== 'undefined') {
+        const attachResizeObserver = (header: HTMLElement) => {
+            if (typeof ResizeObserver === 'undefined' || observedHeader === header) {
+                return;
+            }
+            resizeObserver?.disconnect();
             resizeObserver = new ResizeObserver(scheduleUpdate);
-            resizeObserver.observe(workspaceHeader);
+            resizeObserver.observe(header);
+            observedHeader = header;
+        };
+
+        const tryAttachHeader = () => {
+            const header = document.querySelector<HTMLElement>('.sticky-page-header');
+            if (header) {
+                attachResizeObserver(header);
+                scheduleUpdate();
+            }
+        };
+
+        tryAttachHeader();
+        if (!observedHeader && typeof MutationObserver !== 'undefined') {
+            mutationObserver = new MutationObserver(() => {
+                tryAttachHeader();
+                if (observedHeader) {
+                    mutationObserver?.disconnect();
+                    mutationObserver = null;
+                }
+            });
+            mutationObserver.observe(document.body, { childList: true, subtree: true });
         }
 
         window.addEventListener('resize', scheduleUpdate);
@@ -139,6 +166,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                 window.cancelAnimationFrame(frameId);
             }
             resizeObserver?.disconnect();
+            mutationObserver?.disconnect();
             window.removeEventListener('resize', scheduleUpdate);
         };
     }, []);
@@ -192,24 +220,26 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         if (!resolvedPages) {
             return;
         }
-        if (resolvedPages.length === 0) {
-            updateNavigationState({
-                homePageRef: null,
-                pagesSelectedPageRef: null,
-            });
-            return;
-        }
-        const preferredPageRef = resolveCanvasHomePageRef(resolvedPages);
-        setNavigationState((currentState) => ({
-            ...currentState,
-            homePageRef: currentState.homePageRef && resolvedPages.some((page) => page.url === currentState.homePageRef)
+        setNavigationState((currentState) => {
+            if (resolvedPages.length === 0) {
+                if (currentState.homePageRef === null && currentState.pagesSelectedPageRef === null) {
+                    return currentState;
+                }
+                return { ...currentState, homePageRef: null, pagesSelectedPageRef: null };
+            }
+            const preferredPageRef = resolveCanvasHomePageRef(resolvedPages);
+            const nextHomePageRef = currentState.homePageRef && resolvedPages.some((page) => page.url === currentState.homePageRef)
                 ? currentState.homePageRef
-                : preferredPageRef,
-            pagesSelectedPageRef: currentState.pagesSelectedPageRef && resolvedPages.some((page) => page.url === currentState.pagesSelectedPageRef)
+                : preferredPageRef;
+            const nextPagesSelectedPageRef = currentState.pagesSelectedPageRef && resolvedPages.some((page) => page.url === currentState.pagesSelectedPageRef)
                 ? currentState.pagesSelectedPageRef
-                : null,
-        }));
-    }, [resolvedPages, setNavigationState, updateNavigationState]);
+                : null;
+            if (nextHomePageRef === currentState.homePageRef && nextPagesSelectedPageRef === currentState.pagesSelectedPageRef) {
+                return currentState;
+            }
+            return { ...currentState, homePageRef: nextHomePageRef, pagesSelectedPageRef: nextPagesSelectedPageRef };
+        });
+    }, [resolvedPages, setNavigationState]);
 
     const activePageRef = activeSection === 'pages'
         ? pagesSelectedPageRef
@@ -259,7 +289,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         enabled: Boolean(courseId && isCanvasLinked && shouldLoadGrades),
         ...CANVAS_QUERY_OPTIONS,
     });
-    const grades = gradesQuery.data?.items ?? [];
+    const grades = gradesQuery.data?.items ?? EMPTY_GRADE_ITEMS;
 
     const modulesQuery = useQuery({
         queryKey: courseId ? queryKeys.courses.lmsModules(courseId) : ['courses', 'lms-modules', 'disabled'],
@@ -312,14 +342,15 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
             return;
         }
 
-        updateNavigationState({ activeEntryId: entryId });
+        const patch: Partial<CanvasNavigationUiState> = { activeEntryId: entryId };
         const nextSection = nextEntry.kind === 'section' ? nextEntry.section ?? null : null;
         if (nextSection === 'pages') {
-            updateNavigationState({ pagesSelectedPageRef: null });
+            patch.pagesSelectedPageRef = null;
         }
         if (nextSection === 'announcements' || (nextSection === 'home' && homeLandingTarget === 'announcements')) {
-            updateNavigationState({ selectedAnnouncementId: null });
+            patch.selectedAnnouncementId = null;
         }
+        updateNavigationState(patch);
     }, [homeLandingTarget, navigationEntries, updateNavigationState]);
 
     const handleOpenPage = React.useCallback((pageRef: string) => {
@@ -416,7 +447,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
     const activePageErrorStatus = getQueryErrorStatus(activePageQuery.error);
     const activeEntryUrl = resolveNavigationExternalUrl(activeEntry?.htmlUrl ?? null, canvasOrigin);
 
-    let recommendationCard: React.ReactNode = null;
+    let gradebookHandoffCard: React.ReactNode = null;
     let content: React.ReactNode;
     if (shouldLoadPages && pagesQuery.isLoading && pages.length === 0) {
         content = <CanvasSectionLoading />;
@@ -550,7 +581,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
             );
         }
     } else if (shouldLoadAssignments) {
-        recommendationCard = (
+        gradebookHandoffCard = (
             <CanvasGradebookRecommendationCard
                 sectionLabel="Assignments"
                 canvasHref={activeEntryUrl}
@@ -567,7 +598,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         );
     } else if (shouldLoadGrades) {
         const gradesCanvasHref = grades[0]?.grades_html_url ?? activeEntryUrl;
-        recommendationCard = (
+        gradebookHandoffCard = (
             <CanvasGradebookRecommendationCard
                 sectionLabel="Grades"
                 canvasHref={gradesCanvasHref}
@@ -712,7 +743,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
             </aside>
 
             <div className="min-h-0 min-w-0 flex flex-col gap-4">
-                {recommendationCard}
+                {gradebookHandoffCard}
                 <section className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-background">
                     {content}
                 </section>

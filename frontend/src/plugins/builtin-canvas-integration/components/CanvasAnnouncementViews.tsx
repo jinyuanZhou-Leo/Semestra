@@ -16,6 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { LmsAnnouncementSummary } from '@/services/api';
 
+import { getScrollAreaViewport } from '../tab-helpers';
 import { formatCanvasPageTimestamp } from '../shared';
 import { CanvasHtmlFragment } from './CanvasHtmlFragment';
 
@@ -29,7 +30,7 @@ export const CanvasAnnouncementListView: React.FC<{
     const scrollAreaRef = React.useRef<HTMLDivElement | null>(null);
 
     React.useEffect(() => {
-        const viewport = scrollAreaRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+        const viewport = getScrollAreaViewport(scrollAreaRef.current);
         if (!viewport) {
             return;
         }
@@ -65,7 +66,7 @@ export const CanvasAnnouncementListView: React.FC<{
                         )}
                         onClick={() => onSelectAnnouncement(
                             announcement.announcement_id,
-                            scrollAreaRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]')?.scrollTop ?? 0,
+                            getScrollAreaViewport(scrollAreaRef.current)?.scrollTop ?? 0,
                         )}
                     >
                         <div className="min-w-0 space-y-1">

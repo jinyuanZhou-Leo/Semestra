@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils';
 import api, { type LmsModuleFile, type LmsModuleItem, type LmsModuleSummary } from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
 
-import { CANVAS_QUERY_OPTIONS, openExternalUrl } from '../tab-helpers';
+import { CANVAS_QUERY_OPTIONS, getScrollAreaViewport, openExternalUrl } from '../tab-helpers';
 import { formatCanvasPageTimestamp, resolveCanvasHref, resolveCanvasPageReference } from '../shared';
 import { CanvasHtmlFragment } from './CanvasHtmlFragment';
 
@@ -54,8 +54,6 @@ const MODULE_WINDOW_OVERSCAN = 720;
 const MODULE_DEFAULT_ITEM_COUNT_ESTIMATE = 6;
 const MODULE_DEFAULT_VIEWPORT_HEIGHT = 720;
 const FILE_TEXT_MIME_PREFIXES = ['text/', 'application/json', 'application/xml', 'image/svg+xml'];
-
-const getScrollAreaViewport = (host: HTMLDivElement | null) => host?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]') ?? null;
 
 const buildModuleFileDownloadUrl = (courseId: string, moduleId: string, moduleItemId: string) => (
     `/api/courses/${encodeURIComponent(courseId)}/lms/modules/${encodeURIComponent(moduleId)}/items/${encodeURIComponent(moduleItemId)}/file/download`
@@ -100,8 +98,11 @@ const readBlobAsText = async (blob: Blob) => {
     });
 };
 
-const getResponseContentType = (headers: Record<string, unknown>) => {
-    const value = headers['content-type'] ?? headers['Content-Type'];
+const getResponseContentType = (headers: unknown) => {
+    if (!headers || typeof headers !== 'object') return '';
+    const headerObject = headers as Record<string, unknown> & { get?: (name: string) => unknown };
+    const fromAccessor = typeof headerObject.get === 'function' ? headerObject.get('content-type') : null;
+    const value = fromAccessor ?? headerObject['content-type'] ?? headerObject['Content-Type'];
     return typeof value === 'string' ? value : '';
 };
 
@@ -648,6 +649,19 @@ export const CanvasModulesView: React.FC<{
     }, [courseId]);
 
     React.useEffect(() => {
+        setSelectedModuleItem((current) => {
+            if (!current) return current;
+            const owningModule = items.find((moduleItem) => moduleItem.module_id === current.moduleId);
+            if (!owningModule) return null;
+            const owningItems = owningModule.items ?? [];
+            if (!owningItems.some((item) => item.module_item_id === current.item.module_item_id)) {
+                return null;
+            }
+            return current;
+        });
+    }, [items]);
+
+    React.useEffect(() => {
         const host = scrollAreaHostRef.current;
         const viewport = getScrollAreaViewport(host);
         if (!viewport) {
@@ -707,6 +721,23 @@ export const CanvasModulesView: React.FC<{
         });
     }, [selectedModuleItem]);
 
+    const moduleHeights = React.useMemo(
+        () => items.map((moduleItem) => getEstimatedModuleHeight(moduleItem, openModuleMap[moduleItem.module_id] ?? true)),
+        [items, openModuleMap],
+    );
+
+    const totalHeight = React.useMemo(() => {
+        if (moduleHeights.length === 0) return 0;
+        let sum = 0;
+        for (let index = 0; index < moduleHeights.length; index += 1) {
+            sum += moduleHeights[index];
+            if (index < moduleHeights.length - 1) {
+                sum += MODULE_SECTION_GAP;
+            }
+        }
+        return sum;
+    }, [moduleHeights]);
+
     const windowedModules = React.useMemo(() => {
         const overscanStart = Math.max(0, scrollTop - MODULE_WINDOW_OVERSCAN);
         const overscanEnd = scrollTop + viewportHeight + MODULE_WINDOW_OVERSCAN;
@@ -717,9 +748,7 @@ export const CanvasModulesView: React.FC<{
         let foundStart = false;
 
         for (let index = 0; index < items.length; index += 1) {
-            const moduleItem = items[index];
-            const isOpen = openModuleMap[moduleItem.module_id] ?? true;
-            const moduleHeight = getEstimatedModuleHeight(moduleItem, isOpen);
+            const moduleHeight = moduleHeights[index];
             const moduleStart = cursor;
             const moduleEnd = moduleStart + moduleHeight;
 
@@ -743,22 +772,14 @@ export const CanvasModulesView: React.FC<{
 
         let topSpacer = 0;
         for (let index = 0; index < visibleStartIndex; index += 1) {
-            topSpacer += getEstimatedModuleHeight(items[index], openModuleMap[items[index].module_id] ?? true) + MODULE_SECTION_GAP;
+            topSpacer += moduleHeights[index] + MODULE_SECTION_GAP;
         }
 
         let renderedHeight = 0;
         for (let index = visibleStartIndex; index < visibleEndIndex; index += 1) {
-            renderedHeight += getEstimatedModuleHeight(items[index], openModuleMap[items[index].module_id] ?? true);
+            renderedHeight += moduleHeights[index];
             if (index < visibleEndIndex - 1) {
                 renderedHeight += MODULE_SECTION_GAP;
-            }
-        }
-
-        let totalHeight = 0;
-        for (let index = 0; index < items.length; index += 1) {
-            totalHeight += getEstimatedModuleHeight(items[index], openModuleMap[items[index].module_id] ?? true);
-            if (index < items.length - 1) {
-                totalHeight += MODULE_SECTION_GAP;
             }
         }
 
@@ -767,7 +788,7 @@ export const CanvasModulesView: React.FC<{
             bottomSpacer: Math.max(0, totalHeight - topSpacer - renderedHeight),
             visibleItems: items.slice(visibleStartIndex, visibleEndIndex),
         };
-    }, [items, openModuleMap, scrollTop, viewportHeight]);
+    }, [items, moduleHeights, totalHeight, scrollTop, viewportHeight]);
 
     if (items.length === 0) {
         return (

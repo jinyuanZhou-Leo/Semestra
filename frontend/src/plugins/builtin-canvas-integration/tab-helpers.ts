@@ -15,6 +15,7 @@ import type {
     LmsCourseNavigationResponse,
     LmsCourseNavigationTab,
     LmsCoursePageSummary,
+    LmsGradeSummary,
     LmsModuleSummary,
     LmsQuizSummary,
 } from '@/services/api';
@@ -34,8 +35,13 @@ export type CanvasNavigationEntry = {
 export const EMPTY_PAGE_ITEMS: LmsCoursePageSummary[] = [];
 export const EMPTY_ANNOUNCEMENT_ITEMS: LmsAnnouncementSummary[] = [];
 export const EMPTY_ASSIGNMENT_ITEMS: LmsAssignmentSummary[] = [];
+export const EMPTY_GRADE_ITEMS: LmsGradeSummary[] = [];
 export const EMPTY_MODULE_ITEMS: LmsModuleSummary[] = [];
 export const EMPTY_QUIZ_ITEMS: LmsQuizSummary[] = [];
+
+export const getScrollAreaViewport = (host: HTMLElement | null) => (
+    host?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]') ?? null
+);
 
 export const CANVAS_QUERY_OPTIONS = {
     retry: false,
