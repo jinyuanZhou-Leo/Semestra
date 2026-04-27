@@ -1,6 +1,6 @@
 // input:  [Canvas module summary/item APIs returned from the modules list, Canvas page APIs, Canvas file-download proxy routes, configured axios HTTP client, Canvas link helpers, TanStack Query, shadcn alert/button/collapsible/scroll-area primitives, and shared class merging]
-// output: [CanvasModulesView presentational component plus private windowed module-section, item-row, and single-surface detail renderers with file-download validation plus list-scroll restoration]
-// pos:    [module content renderer for the Canvas integration tab that keeps supported module items in-app, windows offscreen sections, reads inline module item summaries from the modules payload, caches proxied file previews through the configured HTTP client for native rendering, rejects app-shell HTML downloads, scrolls detail views to the top, and restores the module list scroll position after returning from detail]
+// output: [CanvasModulesView presentational component plus private windowed module-section, item-row, and single-surface detail renderers with Canvas fallback links, file-download validation, and list-scroll restoration]
+// pos:    [module content renderer for the Canvas integration tab that keeps supported module items in-app, provides Canvas-open links from each internal detail view, windows offscreen sections, reads inline module item summaries from the modules payload, caches proxied file previews through the configured HTTP client for native rendering, rejects app-shell HTML downloads, scrolls detail views to the top, and restores the module list scroll position after returning from detail]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -19,7 +19,7 @@ import { Collapsible, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import api, { type LmsModuleItem, type LmsModuleSummary } from '@/services/api';
+import api, { type LmsModuleFile, type LmsModuleItem, type LmsModuleSummary } from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
 
 import { CANVAS_QUERY_OPTIONS, openExternalUrl } from '../tab-helpers';
@@ -61,6 +61,18 @@ const buildModuleFileDownloadUrl = (courseId: string, moduleId: string, moduleIt
     `/api/courses/${encodeURIComponent(courseId)}/lms/modules/${encodeURIComponent(moduleId)}/items/${encodeURIComponent(moduleItemId)}/file/download`
 );
 
+const buildModuleFileMetadataUrl = (courseId: string, moduleId: string, moduleItemId: string) => (
+    `/api/courses/${encodeURIComponent(courseId)}/lms/modules/${encodeURIComponent(moduleId)}/items/${encodeURIComponent(moduleItemId)}/file`
+);
+
+const resolveConfiguredApiUrl = (path: string) => {
+    const baseUrl = typeof axios.defaults.baseURL === 'string' ? axios.defaults.baseURL.trim() : '';
+    if (!baseUrl) {
+        return path;
+    }
+    return new URL(path, `${baseUrl.replace(/\/+$/, '')}/`).toString();
+};
+
 const normalizeMimeType = (value: string | null | undefined) => value?.trim().toLowerCase().split(';')[0] ?? '';
 
 const isTextLikeMimeType = (mimeType: string) => (
@@ -94,9 +106,10 @@ const getResponseContentType = (headers: Record<string, unknown>) => {
 };
 
 type CachedModuleFilePreview = {
-    blob: Blob;
     mimeType: string;
     textContent: string | null;
+    blob?: Blob;
+    directUrl?: string;
 };
 
 const getEstimatedModuleBodyHeight = (moduleItem: LmsModuleSummary) => {
@@ -179,16 +192,48 @@ const CanvasModuleItemDetailLoading: React.FC = () => (
     </div>
 );
 
+const CanvasOpenInCanvasLink: React.FC<{
+    href: string | null;
+}> = ({ href }) => {
+    if (!href) {
+        return null;
+    }
+
+    return (
+        <Button asChild variant="outline" size="sm" className="shrink-0">
+            <a href={href} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-3.5" />
+                Open in Canvas
+            </a>
+        </Button>
+    );
+};
+
 const CanvasModuleFilePreview: React.FC<{
     courseId: string;
     moduleId: string;
     moduleItemId: string;
     title: string;
+    canvasHref: string | null;
     onBack: () => void;
-}> = ({ courseId, moduleId, moduleItemId, title, onBack }) => {
+}> = ({ courseId, moduleId, moduleItemId, title, canvasHref, onBack }) => {
     const fileQuery = useQuery<CachedModuleFilePreview>({
         queryKey: queryKeys.courses.lmsModuleFile(courseId, moduleId, moduleItemId),
         queryFn: async () => {
+            const metadataResponse = await axios.get<LmsModuleFile>(buildModuleFileMetadataUrl(courseId, moduleId, moduleItemId));
+            const metadataContentType = normalizeMimeType(getResponseContentType(metadataResponse.headers));
+            if (metadataContentType === 'text/html') {
+                throw new Error('The file download returned an HTML page instead of the Canvas file.');
+            }
+            const metadataMimeType = normalizeMimeType(metadataResponse.data.mime_type);
+            if (metadataMimeType === 'application/pdf') {
+                return {
+                    mimeType: metadataMimeType,
+                    textContent: null,
+                    directUrl: resolveConfiguredApiUrl(buildModuleFileDownloadUrl(courseId, moduleId, moduleItemId)),
+                };
+            }
+
             const response = await axios.get<Blob>(buildModuleFileDownloadUrl(courseId, moduleId, moduleItemId), {
                 responseType: 'blob',
             });
@@ -215,7 +260,7 @@ const CanvasModuleFilePreview: React.FC<{
     const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
 
     React.useEffect(() => {
-        if (!fileQuery.data || fileQuery.data.textContent !== null) {
+        if (!fileQuery.data || fileQuery.data.textContent !== null || fileQuery.data.directUrl || !fileQuery.data.blob) {
             setBlobUrl(null);
             return;
         }
@@ -246,6 +291,7 @@ const CanvasModuleFilePreview: React.FC<{
 
     const mimeType = fileQuery.data.mimeType;
     const textContent = fileQuery.data.textContent;
+    const directUrl = fileQuery.data.directUrl;
     const previewKind = (() => {
         if (mimeType.startsWith('image/')) return 'image';
         if (mimeType.startsWith('video/')) return 'video';
@@ -258,15 +304,20 @@ const CanvasModuleFilePreview: React.FC<{
     return (
         <section className="flex h-full min-h-0 flex-col overflow-hidden">
             <header className="space-y-2 border-b border-border/60 px-5 py-4">
-                <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onBack}>
-                    <ArrowLeft className="size-3.5" />
-                    Back to modules
-                </Button>
-                <div className="min-w-0 space-y-1">
-                    <h3 className="truncate text-xl font-semibold text-foreground">{title}</h3>
-                    <p className="text-sm text-muted-foreground">
-                        {previewKind === 'unknown' ? 'File preview' : `${previewKind.charAt(0).toUpperCase() + previewKind.slice(1)} preview`}
-                    </p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-2">
+                        <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onBack}>
+                            <ArrowLeft className="size-3.5" />
+                            Back to modules
+                        </Button>
+                        <div className="min-w-0 space-y-1">
+                            <h3 className="truncate text-xl font-semibold text-foreground">{title}</h3>
+                            <p className="text-sm text-muted-foreground">
+                                {previewKind === 'unknown' ? 'File preview' : `${previewKind.charAt(0).toUpperCase() + previewKind.slice(1)} preview`}
+                            </p>
+                        </div>
+                    </div>
+                    <CanvasOpenInCanvasLink href={canvasHref} />
                 </div>
             </header>
             <div className="min-h-0 flex-1 overflow-auto">
@@ -282,9 +333,9 @@ const CanvasModuleFilePreview: React.FC<{
                     <div className="p-5">
                         <audio controls className="w-full" src={blobUrl} />
                     </div>
-                ) : previewKind === 'pdf' && blobUrl ? (
+                ) : previewKind === 'pdf' && (directUrl || blobUrl) ? (
                     <object
-                        data={blobUrl}
+                        data={directUrl ?? blobUrl ?? undefined}
                         type="application/pdf"
                         aria-label={`${title} preview`}
                         className="h-[72vh] w-full"
@@ -337,6 +388,10 @@ const CanvasModuleItemDetail: React.FC<{
         () => moduleItem.page_url ?? resolveCanvasPageReference(moduleItem.html_url ?? moduleItem.url ?? '', courseExternalId, canvasOrigin),
         [canvasOrigin, courseExternalId, moduleItem.html_url, moduleItem.page_url, moduleItem.url],
     );
+    const moduleItemCanvasHref = React.useMemo(
+        () => resolveCanvasHref(moduleItem.html_url ?? moduleItem.url ?? '', canvasOrigin),
+        [canvasOrigin, moduleItem.html_url, moduleItem.url],
+    );
     const [activePageRef, setActivePageRef] = React.useState<string | null>(detailItemType === 'page' ? resolvedPageRef : null);
     const isPageItem = detailItemType === 'page' && Boolean(activePageRef);
 
@@ -369,6 +424,8 @@ const CanvasModuleItemDetail: React.FC<{
             );
         }
 
+        const pageCanvasHref = resolveCanvasHref(pageQuery.data.html_url ?? '', canvasOrigin) ?? moduleItemCanvasHref;
+
         return (
             <div className="flex h-full min-h-0 flex-col overflow-hidden">
                 <div className="border-b border-border/60 px-5 py-4">
@@ -383,6 +440,7 @@ const CanvasModuleItemDetail: React.FC<{
                                 Updated {formatCanvasPageTimestamp(pageQuery.data.updated_at)}
                             </p>
                         </div>
+                        <CanvasOpenInCanvasLink href={pageCanvasHref} />
                     </div>
                 </div>
                 <ScrollArea className="min-h-0 flex-1">
@@ -418,6 +476,7 @@ const CanvasModuleItemDetail: React.FC<{
                 moduleId={moduleId}
                 moduleItemId={moduleItem.module_item_id}
                 title={moduleItem.title}
+                canvasHref={moduleItemCanvasHref}
                 onBack={onBack}
             />
         );
@@ -434,6 +493,7 @@ const CanvasModuleItemDetail: React.FC<{
                         </Button>
                         <h3 className="text-xl font-semibold text-foreground">{moduleItem.title}</h3>
                     </div>
+                    <CanvasOpenInCanvasLink href={moduleItemCanvasHref} />
                 </div>
             </div>
 

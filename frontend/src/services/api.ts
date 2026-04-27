@@ -610,6 +610,17 @@ export interface LmsModuleItemListResponse {
     items: LmsModuleItem[];
 }
 
+export interface LmsModuleFile {
+    file_id: string;
+    display_name: string;
+    filename?: string | null;
+    mime_type?: string | null;
+    size_bytes?: number | null;
+    download_url?: string | null;
+    locked_for_user: boolean;
+    lock_explanation?: string | null;
+}
+
 export interface LmsQuizSummary {
     quiz_id: string;
     title: string;

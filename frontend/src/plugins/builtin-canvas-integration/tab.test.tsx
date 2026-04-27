@@ -104,6 +104,21 @@ const getCanvasModulesViewport = (container: HTMLElement) => {
     return viewports.find((viewport) => viewport.textContent?.includes('Lecture Slides')) ?? null;
 };
 
+const mockTextModuleFileDownload = (body: string) => (
+    vi.spyOn(axios, 'get').mockImplementation(async (url: string) => {
+        if (url.endsWith('/file')) {
+            return {
+                data: { mime_type: 'text/plain' },
+                headers: { 'content-type': 'application/json' },
+            };
+        }
+        return {
+            data: new Blob([body], { type: 'text/plain' }),
+            headers: { 'content-type': 'text/plain' },
+        };
+    })
+);
+
 describe('CanvasPagesTab', () => {
     beforeEach(() => {
         Object.defineProperty(window, 'localStorage', {
@@ -351,10 +366,7 @@ describe('CanvasPagesTab', () => {
 
     it('keeps supported module items in-app and only external/discussion items open Canvas', async () => {
         const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-        const axiosGetSpy = vi.spyOn(axios, 'get').mockResolvedValue({
-            data: new Blob(['Reference file body'], { type: 'text/plain' }),
-            headers: { 'content-type': 'text/plain' },
-        });
+        const axiosGetSpy = mockTextModuleFileDownload('Reference file body');
 
         vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
             default_view: 'modules',
@@ -452,6 +464,7 @@ describe('CanvasPagesTab', () => {
 
         expect(await screen.findByText('Overview body')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Back to modules' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Open in Canvas' })).toHaveAttribute('href', 'https://canvas.example.edu/courses/canvas-course-1/pages/course-overview');
         expect(openSpy).not.toHaveBeenCalled();
 
         fireEvent.click(screen.getByRole('button', { name: 'Back to modules' }));
@@ -462,28 +475,26 @@ describe('CanvasPagesTab', () => {
         fireEvent.click(fileTitle);
 
         expect(await screen.findByText('Reference file body')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Open in Canvas' })).toHaveAttribute('href', 'https://canvas.example.edu/courses/canvas-course-1/files/1');
         await waitFor(() => {
             expect(axiosGetSpy).toHaveBeenCalledWith('/api/courses/course-1/lms/modules/module-1/items/item-2/file/download', expect.objectContaining({
                 responseType: 'blob',
             }));
         });
-        expect(axiosGetSpy).toHaveBeenCalledTimes(1);
+        expect(axiosGetSpy).toHaveBeenCalledTimes(2);
 
         fireEvent.click(screen.getByRole('button', { name: 'Back to modules' }));
         fireEvent.click(await screen.findByText('Reference PDF'));
 
         expect(await screen.findByText('Reference file body')).toBeInTheDocument();
-        expect(axiosGetSpy).toHaveBeenCalledTimes(1);
+        expect(axiosGetSpy).toHaveBeenCalledTimes(2);
         expect(openSpy).not.toHaveBeenCalled();
         axiosGetSpy.mockRestore();
         openSpy.mockRestore();
     });
 
     it('scrolls module file detail to the top and restores the list position on back', async () => {
-        const axiosGetSpy = vi.spyOn(axios, 'get').mockResolvedValue({
-            data: new Blob(['Scrolled file body'], { type: 'text/plain' }),
-            headers: { 'content-type': 'text/plain' },
-        });
+        const axiosGetSpy = mockTextModuleFileDownload('Scrolled file body');
 
         vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
             default_view: 'modules',
@@ -600,6 +611,151 @@ describe('CanvasPagesTab', () => {
         expect(await screen.findByText('The file download returned an HTML page instead of the Canvas file.')).toBeInTheDocument();
         expect(screen.queryByText(/<!doctype html>/i)).not.toBeInTheDocument();
         axiosGetSpy.mockRestore();
+    });
+
+    it('previews PDF module files through the browser URL without downloading the blob', async () => {
+        const previousBaseUrl = axios.defaults.baseURL;
+        axios.defaults.baseURL = 'https://api.semestra.test';
+        const axiosGetSpy = vi.spyOn(axios, 'get').mockImplementation(async (url: string) => {
+            if (url === '/api/courses/course-1/lms/modules/module-1/items/item-1/file') {
+                return {
+                    data: {
+                        file_id: 'file-1',
+                        display_name: 'Lab-1 Instructions_Update2025.pdf',
+                        filename: 'Lab-1 Instructions_Update2025.pdf',
+                        mime_type: 'application/pdf',
+                        size_bytes: 24_000_000,
+                        download_url: '/courses/course-1/lms/modules/module-1/items/item-1/file/download',
+                        locked_for_user: false,
+                        lock_explanation: null,
+                    },
+                    headers: { 'content-type': 'application/json' },
+                };
+            }
+            throw new Error(`Unexpected blob download: ${url}`);
+        });
+
+        vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
+            default_view: 'modules',
+            front_page_url: null,
+            tabs: [
+                { tab_id: 'home', label: 'Home', html_url: 'https://canvas.example.edu/courses/1', hidden: false, position: 1, tab_type: 'internal', active: true },
+                { tab_id: 'modules', label: 'Modules', html_url: 'https://canvas.example.edu/courses/1/modules', hidden: false, position: 2, tab_type: 'internal', active: false },
+            ],
+        });
+        vi.mocked(api.getCourseLmsModules).mockResolvedValue({
+            items: [
+                {
+                    module_id: 'module-1',
+                    name: 'Week 1',
+                    position: 1,
+                    published: true,
+                    state: 'active',
+                    unlock_at: null,
+                    item_count: 1,
+                    items: [
+                        {
+                            module_item_id: 'item-1',
+                            title: 'Lab-1 Instructions_Update2025.pdf',
+                            item_type: 'File',
+                            content_id: 'file-1',
+                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/1',
+                            url: '/courses/canvas-course-1/files/1',
+                            position: 1,
+                            indent: 0,
+                            published: true,
+                            completion_requirement_type: null,
+                            new_tab: true,
+                            target_type: 'file',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const { container } = renderCanvasTab();
+
+        try {
+            fireEvent.click(await screen.findByText('Lab-1 Instructions_Update2025.pdf'));
+
+            expect(await screen.findByText('Pdf preview')).toBeInTheDocument();
+            const preview = container.querySelector<HTMLObjectElement>('object[type="application/pdf"]');
+            expect(preview).not.toBeNull();
+            expect(preview?.getAttribute('data')).toBe('https://api.semestra.test/api/courses/course-1/lms/modules/module-1/items/item-1/file/download');
+            expect(axiosGetSpy).toHaveBeenCalledTimes(1);
+        } finally {
+            axios.defaults.baseURL = previousBaseUrl;
+            axiosGetSpy.mockRestore();
+        }
+    });
+
+    it('shows Canvas links for assignment and quiz module detail handoffs', async () => {
+        vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
+            default_view: 'modules',
+            front_page_url: null,
+            tabs: [
+                { tab_id: 'home', label: 'Home', html_url: 'https://canvas.example.edu/courses/1', hidden: false, position: 1, tab_type: 'internal', active: true },
+                { tab_id: 'assignments', label: 'Assignments', html_url: 'https://canvas.example.edu/courses/1/assignments', hidden: false, position: 2, tab_type: 'internal', active: false },
+                { tab_id: 'modules', label: 'Modules', html_url: 'https://canvas.example.edu/courses/1/modules', hidden: false, position: 3, tab_type: 'internal', active: false },
+                { tab_id: 'quizzes', label: 'Quizzes', html_url: 'https://canvas.example.edu/courses/1/quizzes', hidden: false, position: 4, tab_type: 'internal', active: false },
+            ],
+        });
+        vi.mocked(api.getCourseLmsModules).mockResolvedValue({
+            items: [
+                {
+                    module_id: 'module-1',
+                    name: 'Week 1',
+                    position: 1,
+                    published: true,
+                    state: 'active',
+                    unlock_at: null,
+                    item_count: 2,
+                    items: [
+                        {
+                            module_item_id: 'item-1',
+                            title: 'Submit Lab 1',
+                            item_type: 'Assignment',
+                            content_id: 'assignment-1',
+                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/assignments/1',
+                            url: '/courses/canvas-course-1/assignments/1',
+                            position: 1,
+                            indent: 0,
+                            published: true,
+                            completion_requirement_type: null,
+                            new_tab: false,
+                            target_type: 'assignment',
+                        },
+                        {
+                            module_item_id: 'item-2',
+                            title: 'Week 1 Quiz',
+                            item_type: 'Quiz',
+                            content_id: 'quiz-1',
+                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/quizzes/1',
+                            url: '/courses/canvas-course-1/quizzes/1',
+                            position: 2,
+                            indent: 0,
+                            published: true,
+                            completion_requirement_type: null,
+                            new_tab: false,
+                            target_type: 'quiz',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        renderCanvasTab();
+
+        fireEvent.click(await screen.findByText('Submit Lab 1'));
+
+        expect(await screen.findByRole('button', { name: 'Open Assignments' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Open in Canvas' })).toHaveAttribute('href', 'https://canvas.example.edu/courses/canvas-course-1/assignments/1');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to modules' }));
+        fireEvent.click(await screen.findByText('Week 1 Quiz'));
+
+        expect(await screen.findByRole('button', { name: 'Open Quizzes' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Open in Canvas' })).toHaveAttribute('href', 'https://canvas.example.edu/courses/canvas-course-1/quizzes/1');
     });
 
     it('still opens external and discussion module items in Canvas', async () => {
