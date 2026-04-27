@@ -1,6 +1,6 @@
 // input:  [Canvas navigation tab runtime, mocked course context, mocked Canvas LMS summary/item APIs, and testing-library assertions/interactions]
-// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, assignment or grade Canvas views, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, inline module-item rendering from the modules payload, and query-cached native module file rendering]
-// pos:    [Canvas integration tab regression suite for supported Canvas navigation flows, optimized module rendering, assignment or grade Canvas data UI, inline module item loading through the modules summary response, in-app module item drill-down, cached native file previews, and unavailable-state alignment]
+// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, assignment or grade Canvas views, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, inline module-item rendering from the modules payload, query-cached native module file rendering, module detail scroll navigation, and HTML app-shell download rejection]
+// pos:    [Canvas integration tab regression suite for supported Canvas navigation flows, optimized module rendering, assignment or grade Canvas data UI, inline module item loading through the modules summary response, in-app module item drill-down, cached native file previews through the configured HTTP client, detail-top scroll behavior, app-shell HTML download rejection, and unavailable-state alignment]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,6 +8,7 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import axios from 'axios';
 
 import * as courseDataContext from '@/contexts/CourseDataContext';
 import { DialogProvider } from '@/contexts/DialogContext';
@@ -96,6 +97,11 @@ const createMockStorage = () => {
             store.clear();
         },
     } as Storage;
+};
+
+const getCanvasModulesViewport = (container: HTMLElement) => {
+    const viewports = Array.from(container.querySelectorAll<HTMLDivElement>('[data-slot="scroll-area-viewport"]'));
+    return viewports.find((viewport) => viewport.textContent?.includes('Lecture Slides')) ?? null;
 };
 
 describe('CanvasPagesTab', () => {
@@ -345,11 +351,10 @@ describe('CanvasPagesTab', () => {
 
     it('keeps supported module items in-app and only external/discussion items open Canvas', async () => {
         const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            status: 200,
-            blob: async () => new Blob(['Reference file body'], { type: 'text/plain' }),
-        } as Response);
+        const axiosGetSpy = vi.spyOn(axios, 'get').mockResolvedValue({
+            data: new Blob(['Reference file body'], { type: 'text/plain' }),
+            headers: { 'content-type': 'text/plain' },
+        });
 
         vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
             default_view: 'modules',
@@ -458,20 +463,143 @@ describe('CanvasPagesTab', () => {
 
         expect(await screen.findByText('Reference file body')).toBeInTheDocument();
         await waitFor(() => {
-            expect(fetchSpy).toHaveBeenCalledWith('/api/courses/course-1/lms/modules/module-1/items/item-2/file/download', expect.objectContaining({
-                credentials: 'include',
+            expect(axiosGetSpy).toHaveBeenCalledWith('/api/courses/course-1/lms/modules/module-1/items/item-2/file/download', expect.objectContaining({
+                responseType: 'blob',
             }));
         });
-        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        expect(axiosGetSpy).toHaveBeenCalledTimes(1);
 
         fireEvent.click(screen.getByRole('button', { name: 'Back to modules' }));
         fireEvent.click(await screen.findByText('Reference PDF'));
 
         expect(await screen.findByText('Reference file body')).toBeInTheDocument();
-        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        expect(axiosGetSpy).toHaveBeenCalledTimes(1);
         expect(openSpy).not.toHaveBeenCalled();
-        fetchSpy.mockRestore();
+        axiosGetSpy.mockRestore();
         openSpy.mockRestore();
+    });
+
+    it('scrolls module file detail to the top and restores the list position on back', async () => {
+        const axiosGetSpy = vi.spyOn(axios, 'get').mockResolvedValue({
+            data: new Blob(['Scrolled file body'], { type: 'text/plain' }),
+            headers: { 'content-type': 'text/plain' },
+        });
+
+        vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
+            default_view: 'modules',
+            front_page_url: null,
+            tabs: [
+                { tab_id: 'home', label: 'Home', html_url: 'https://canvas.example.edu/courses/1', hidden: false, position: 1, tab_type: 'internal', active: true },
+                { tab_id: 'modules', label: 'Modules', html_url: 'https://canvas.example.edu/courses/1/modules', hidden: false, position: 2, tab_type: 'internal', active: false },
+            ],
+        });
+        vi.mocked(api.getCourseLmsModules).mockResolvedValue({
+            items: [
+                {
+                    module_id: 'module-1',
+                    name: 'Week 1',
+                    position: 1,
+                    published: true,
+                    state: 'active',
+                    unlock_at: null,
+                    item_count: 1,
+                    items: [
+                        {
+                            module_item_id: 'item-1',
+                            title: 'Lecture Slides',
+                            item_type: 'File',
+                            content_id: 'file-1',
+                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/1',
+                            url: '/courses/canvas-course-1/files/1',
+                            position: 1,
+                            indent: 0,
+                            published: true,
+                            completion_requirement_type: null,
+                            new_tab: true,
+                            target_type: 'file',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const { container } = renderCanvasTab();
+
+        expect(await screen.findByText('Lecture Slides')).toBeInTheDocument();
+        const viewport = getCanvasModulesViewport(container);
+        expect(viewport).not.toBeNull();
+        viewport!.scrollTop = 420;
+
+        fireEvent.click(screen.getByText('Lecture Slides'));
+
+        expect(await screen.findByText('Scrolled file body')).toBeInTheDocument();
+        await waitFor(() => {
+            expect(viewport!.scrollTop).toBe(0);
+        });
+        expect(axiosGetSpy).toHaveBeenCalledWith('/api/courses/course-1/lms/modules/module-1/items/item-1/file/download', expect.objectContaining({
+            responseType: 'blob',
+        }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to modules' }));
+
+        await waitFor(() => {
+            expect(viewport!.scrollTop).toBe(420);
+        });
+        axiosGetSpy.mockRestore();
+    });
+
+    it('does not render an HTML app shell as a module file text preview', async () => {
+        const axiosGetSpy = vi.spyOn(axios, 'get').mockResolvedValue({
+            data: new Blob(['<!doctype html><html><body>Semestra</body></html>'], { type: 'text/html' }),
+            headers: { 'content-type': 'text/html; charset=utf-8' },
+        });
+
+        vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
+            default_view: 'modules',
+            front_page_url: null,
+            tabs: [
+                { tab_id: 'home', label: 'Home', html_url: 'https://canvas.example.edu/courses/1', hidden: false, position: 1, tab_type: 'internal', active: true },
+                { tab_id: 'modules', label: 'Modules', html_url: 'https://canvas.example.edu/courses/1/modules', hidden: false, position: 2, tab_type: 'internal', active: false },
+            ],
+        });
+        vi.mocked(api.getCourseLmsModules).mockResolvedValue({
+            items: [
+                {
+                    module_id: 'module-1',
+                    name: 'Week 1',
+                    position: 1,
+                    published: true,
+                    state: 'active',
+                    unlock_at: null,
+                    item_count: 1,
+                    items: [
+                        {
+                            module_item_id: 'item-1',
+                            title: 'Lab-1 Instructions_Update2025.pdf',
+                            item_type: 'File',
+                            content_id: 'file-1',
+                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/1',
+                            url: '/courses/canvas-course-1/files/1',
+                            position: 1,
+                            indent: 0,
+                            published: true,
+                            completion_requirement_type: null,
+                            new_tab: true,
+                            target_type: 'file',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        renderCanvasTab();
+
+        fireEvent.click(await screen.findByText('Lab-1 Instructions_Update2025.pdf'));
+
+        expect(await screen.findByText('File preview unavailable')).toBeInTheDocument();
+        expect(await screen.findByText('The file download returned an HTML page instead of the Canvas file.')).toBeInTheDocument();
+        expect(screen.queryByText(/<!doctype html>/i)).not.toBeInTheDocument();
+        axiosGetSpy.mockRestore();
     });
 
     it('still opens external and discussion module items in Canvas', async () => {

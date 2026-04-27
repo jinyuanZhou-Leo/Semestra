@@ -1,6 +1,6 @@
-// input:  [Canvas module summary/item APIs returned from the modules list, Canvas page APIs, Canvas file-download proxy routes, Canvas link helpers, TanStack Query, shadcn alert/button/collapsible/scroll-area primitives, and shared class merging]
-// output: [CanvasModulesView presentational component plus private windowed module-section, item-row, and single-surface detail renderers with list-scroll restoration]
-// pos:    [module content renderer for the Canvas integration tab that keeps supported module items in-app, windows offscreen sections, reads inline module item summaries from the modules payload, caches proxied file previews for native rendering, reuses the host content surface for detail drill-down, and restores the module list scroll position after returning from detail]
+// input:  [Canvas module summary/item APIs returned from the modules list, Canvas page APIs, Canvas file-download proxy routes, configured axios HTTP client, Canvas link helpers, TanStack Query, shadcn alert/button/collapsible/scroll-area primitives, and shared class merging]
+// output: [CanvasModulesView presentational component plus private windowed module-section, item-row, and single-surface detail renderers with file-download validation plus list-scroll restoration]
+// pos:    [module content renderer for the Canvas integration tab that keeps supported module items in-app, windows offscreen sections, reads inline module item summaries from the modules payload, caches proxied file previews through the configured HTTP client for native rendering, rejects app-shell HTML downloads, scrolls detail views to the top, and restores the module list scroll position after returning from detail]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 import { AlertCircle, ArrowLeft, ArrowRight, ChevronRight, ExternalLink } from 'lucide-react';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
@@ -85,6 +86,11 @@ const readBlobAsText = async (blob: Blob) => {
         reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
         reader.readAsText(blob);
     });
+};
+
+const getResponseContentType = (headers: Record<string, unknown>) => {
+    const value = headers['content-type'] ?? headers['Content-Type'];
+    return typeof value === 'string' ? value : '';
 };
 
 type CachedModuleFilePreview = {
@@ -183,16 +189,14 @@ const CanvasModuleFilePreview: React.FC<{
     const fileQuery = useQuery<CachedModuleFilePreview>({
         queryKey: queryKeys.courses.lmsModuleFile(courseId, moduleId, moduleItemId),
         queryFn: async () => {
-            const response = await fetch(buildModuleFileDownloadUrl(courseId, moduleId, moduleItemId), {
-                credentials: 'include',
+            const response = await axios.get<Blob>(buildModuleFileDownloadUrl(courseId, moduleId, moduleItemId), {
+                responseType: 'blob',
             });
-
-            if (!response.ok) {
-                throw new Error(`Request failed with status ${response.status}`);
+            const blob = response.data;
+            const mimeType = normalizeMimeType(getResponseContentType(response.headers) || blob.type);
+            if (mimeType === 'text/html') {
+                throw new Error('The file download returned an HTML page instead of the Canvas file.');
             }
-
-            const blob = await response.blob();
-            const mimeType = normalizeMimeType(blob.type);
             const textContent = isTextLikeMimeType(mimeType)
                 ? await readBlobAsText(blob)
                 : null;
@@ -628,6 +632,20 @@ export const CanvasModulesView: React.FC<{
             setScrollTop(listScrollTopRef.current);
         });
     }, []);
+
+    React.useEffect(() => {
+        if (!selectedModuleItem || typeof window === 'undefined') {
+            return;
+        }
+        window.requestAnimationFrame(() => {
+            const viewport = getScrollAreaViewport(scrollAreaHostRef.current);
+            if (!viewport) {
+                return;
+            }
+            viewport.scrollTop = 0;
+            setScrollTop(0);
+        });
+    }, [selectedModuleItem]);
 
     const windowedModules = React.useMemo(() => {
         const overscanStart = Math.max(0, scrollTop - MODULE_WINDOW_OVERSCAN);
