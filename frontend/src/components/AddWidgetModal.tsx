@@ -1,6 +1,6 @@
-// input:  [plugin widget catalog, runtime-governed allowed widget types, current dashboard widgets, widget add callback, search state, responsive overlay wrapper]
+// input:  [plugin widget catalog, runtime-governed allowed widget types, current dashboard widgets, success-aware widget add callback, search state, responsive overlay wrapper]
 // output: [`AddWidgetModal` component]
-// pos:    [Responsive add-widget selector surface for course/semester pages that respects runtime plugin availability (desktop dialog + mobile drawer)]
+// pos:    [Responsive add-widget selector surface for course/semester pages that respects runtime plugin availability and keeps the picker open when creation fails (desktop dialog + mobile drawer)]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -24,7 +24,7 @@ import { ResponsiveDialogDrawer } from './ResponsiveDialogDrawer';
 interface AddWidgetModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onAdd: (type: string, title?: string) => void | Promise<void>;
+    onAdd: (type: string, title?: string) => boolean | void | Promise<boolean | void>;
     context: WidgetContext;
     widgets: WidgetItem[];
     allowedTypes?: string[];
@@ -86,7 +86,10 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
 
         setIsAddingPlugin(true);
         try {
-            await onAdd(selectedType);
+            const didAdd = await onAdd(selectedType);
+            if (didAdd === false) {
+                return;
+            }
             onClose();
             setSelectedType(null);
             setSearchQuery('');

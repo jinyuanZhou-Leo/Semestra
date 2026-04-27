@@ -1,6 +1,6 @@
-// input:  [widget collection, edit-mode flags, v2 RGL width hook, shared empty-state wrapper, empty-state container continuity, resize-frequency guards, interaction-scoped local sync + commit callbacks, layout normalization utilities, and unavailable-widget delete overrides]
+// input:  [widget collection, edit-mode flags, v2 RGL width hook/breakpoint semantics, shared empty-state wrapper, empty-state container continuity, resize-frequency guards, interaction-scoped local sync + commit callbacks, layout normalization utilities, and unavailable-widget delete overrides]
 // output: [`DashboardGrid` component and dashboard layout type contracts]
-// pos:    [Core responsive dashboard renderer with resize-stabilized width updates, shared section empty states, persistent width-measurement mounting across empty states, split local-sync/commit persistence flows, and unavailable-widget delete escape hatches]
+// pos:    [Core responsive dashboard renderer with RGL v2-aligned breakpoint resolution, resize-stabilized width updates, shared section empty states, persistent width-measurement mounting across empty states, split local-sync/commit persistence flows, and unavailable-widget delete escape hatches]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -35,7 +35,7 @@ const RESIZE_COMMIT_INTERVAL_MS = 120;
 const RESIZE_SETTLE_DELAY_MS = 180;
 const MOBILE_BREAKPOINTS = new Set<keyof typeof GRID_BREAKPOINTS>(['sm', 'xs', 'xxs']);
 const SORTED_BREAKPOINTS = (Object.entries(GRID_BREAKPOINTS) as Array<[keyof typeof GRID_BREAKPOINTS, number]>)
-    .sort((l, r) => r[1] - l[1]);
+    .sort((l, r) => l[1] - r[1]);
 
 export type DeviceLayoutMode = 'desktop' | 'mobile';
 
@@ -56,10 +56,13 @@ const getDeviceLayoutModeByBreakpoint = (breakpoint: keyof typeof GRID_BREAKPOIN
 };
 
 const getBreakpointByWidth = (width: number): keyof typeof GRID_BREAKPOINTS => {
+    let matchingBreakpoint = SORTED_BREAKPOINTS[0][0];
     for (const [breakpoint, minWidth] of SORTED_BREAKPOINTS) {
-        if (width >= minWidth) return breakpoint;
+        if (width > minWidth) {
+            matchingBreakpoint = breakpoint;
+        }
     }
-    return 'xxs';
+    return matchingBreakpoint;
 };
 
 const computeGridUnitSize = (
@@ -129,9 +132,8 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
 }) => {
     const isTouchDevice = useTouchDevice();
     const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true, initialWidth: 0 });
-    const activeBreakpointRef = useRef<keyof typeof GRID_BREAKPOINTS>('lg');
-    const isUserInteractingRef = useRef(false);
     const normalizedMeasuredWidth = React.useMemo(() => normalizeMeasuredWidth(width), [width]);
+    const isUserInteractingRef = useRef(false);
     const [stableWidth, setStableWidth] = React.useState<number>(normalizedMeasuredWidth);
     const stableWidthRef = React.useRef(stableWidth);
     const latestMeasuredWidthRef = React.useRef(normalizedMeasuredWidth);
@@ -139,6 +141,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     const lastWidthCommitAtRef = React.useRef<number>(0);
     const effectiveGridWidth = stableWidth > 0 ? stableWidth : normalizedMeasuredWidth;
     const hasRenderableWidth = effectiveGridWidth > 0;
+    const activeBreakpoint = useMemo(() => getBreakpointByWidth(effectiveGridWidth), [effectiveGridWidth]);
 
     const commitStableWidth = React.useCallback((nextWidth: number, now: number) => {
         if (nextWidth === stableWidthRef.current) return;
@@ -194,21 +197,19 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     }, []);
 
     const rowHeight = useMemo(() => {
-        const breakpoint = getBreakpointByWidth(effectiveGridWidth);
-        return computeGridUnitSize(effectiveGridWidth, GRID_COLS[breakpoint], GRID_MARGIN, GRID_CONTAINER_PADDING);
-    }, [effectiveGridWidth]);
+        return computeGridUnitSize(effectiveGridWidth, GRID_COLS[activeBreakpoint], GRID_MARGIN, GRID_CONTAINER_PADDING);
+    }, [activeBreakpoint, effectiveGridWidth]);
 
     const handleInteractionStart = React.useCallback(() => {
         isUserInteractingRef.current = true;
     }, []);
 
     const getActiveLayoutContext = React.useCallback(() => {
-        const breakpoint = activeBreakpointRef.current;
         return {
-            deviceMode: getDeviceLayoutModeByBreakpoint(breakpoint),
-            maxCols: GRID_COLS[breakpoint]
+            deviceMode: getDeviceLayoutModeByBreakpoint(activeBreakpoint),
+            maxCols: GRID_COLS[activeBreakpoint]
         };
-    }, []);
+    }, [activeBreakpoint]);
 
     const syncLocalLayout = React.useCallback((layout: Layout) => {
         const context = getActiveLayoutContext();
@@ -230,12 +231,6 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     const handleLayoutChange = React.useCallback((layout: Layout) => {
         if (isUserInteractingRef.current) syncLocalLayout(layout);
     }, [syncLocalLayout]);
-
-    const handleBreakpointChange = React.useCallback((newBreakpoint: string) => {
-        if (newBreakpoint in GRID_BREAKPOINTS) {
-            activeBreakpointRef.current = newBreakpoint as keyof typeof GRID_BREAKPOINTS;
-        }
-    }, []);
 
     const getWidgetLayoutForDevice = React.useCallback((layout: WidgetResponsiveLayout | undefined, deviceMode: DeviceLayoutMode) => {
         if (!layout) return undefined;
@@ -330,6 +325,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                 <Responsive
                     className={`layout${isEditMode ? ' layout--editing' : ''}`}
                     layouts={layouts}
+                    breakpoint={activeBreakpoint}
                     breakpoints={GRID_BREAKPOINTS}
                     cols={GRID_COLS}
                     width={effectiveGridWidth}
@@ -344,7 +340,6 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                     onDragStop={handleInteractionStop}
                     onResizeStart={handleInteractionStart}
                     onResizeStop={handleInteractionStop}
-                    onBreakpointChange={handleBreakpointChange}
                     dragConfig={{
                         enabled: isEditMode,
                         handle: isTouchDevice ? '.drag-surface' : '.drag-handle',

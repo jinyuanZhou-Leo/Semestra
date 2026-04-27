@@ -15,7 +15,7 @@ Also includes the Semester wizard bridge that renders plugin setup steps and rev
 | widgets/ | Subdirectory | Dashboard widget layout/container infrastructure, including single-ring card-aligned widget chrome, edit-mode-only hover elevation, and forced delete affordances when plugin widgets become unavailable. |
 | AppEmptyState.tsx | UI component | Business-layer empty-state wrapper that standardizes scenario-based create, no-results, not-found, and unavailable states while composing shadcn `Empty` primitives without modifying `components/ui`. |
 | AddTabModal.tsx | UI component | Reusable add-tab selector using desktop dialog and mobile drawer presentation. |
-| AddWidgetModal.tsx | UI component | Reusable add-widget selector using desktop dialog and mobile drawer presentation, now optionally filtered by the current Semester-governed plugin/widget availability. |
+| AddWidgetModal.tsx | UI component | Reusable add-widget selector using desktop dialog and mobile drawer presentation, optionally filtered by current runtime plugin/widget availability, and kept open when widget creation reports failure. |
 | AnimatedNumber.tsx | UI component | Reusable component for animated number UI/interaction flow. |
 | AuthCodeInput.tsx | UI component | Shared six-digit shadcn `InputOTP` field used by register, login, and password-reset email-code flows. |
 | AuthRouteLayout.tsx | Route layout | Shared public-auth route shell that keeps the split-screen chrome and right-side artwork panel mounted while the unified `/login` entry, the `/register` compatibility redirect, and `/reset-password` swap only their left-side content, with a larger top-left Semestra brand mark beside the theme toggle. |

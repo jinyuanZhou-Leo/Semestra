@@ -76,7 +76,7 @@ beforeAll(() => {
 
 // Mock RGL
 let latestResponsiveProps: MockResponsiveProps | null = null;
-let mockContainerWidth = 1200;
+let mockContainerWidth = 1201;
 vi.mock('react-grid-layout', () => {
     return {
         useContainerWidth: () => ({
@@ -110,7 +110,7 @@ vi.mock('../../../plugins/course-list/widget', () => ({
 describe('DashboardGrid', () => {
     beforeEach(() => {
         latestResponsiveProps = null;
-        mockContainerWidth = 1200;
+        mockContainerWidth = 1201;
     });
     afterEach(() => {
         vi.useRealTimers();
@@ -183,7 +183,7 @@ describe('DashboardGrid', () => {
             />
         );
 
-        expect(latestResponsiveProps?.rowHeight).toBeCloseTo((1200 - 16 * 11) / 12, 5);
+        expect(latestResponsiveProps?.rowHeight).toBeCloseTo((1201 - 16 * 11) / 12, 5);
 
         mockContainerWidth = 768;
         rerender(
@@ -194,7 +194,23 @@ describe('DashboardGrid', () => {
                 isEditMode
             />
         );
-        expect(latestResponsiveProps?.rowHeight).toBeCloseTo((768 - 16 * 5) / 6, 5);
+        expect(latestResponsiveProps?.rowHeight).toBeCloseTo((768 - 16 * 3) / 4, 5);
+    });
+
+    it('matches RGL v2 breakpoint thresholds at exact widths', () => {
+        const widgets: WidgetItem[] = [{ id: '1', type: 'counter', title: 'Counter 1' }];
+        mockContainerWidth = 996;
+
+        render(
+            <DashboardGrid
+                widgets={widgets}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        expect(latestResponsiveProps?.rowHeight).toBeCloseTo((996 - 16 * 5) / 6, 5);
     });
 
     it('falls back to a safe grid unit when width is too small', () => {
@@ -236,7 +252,7 @@ describe('DashboardGrid', () => {
 
         expect(screen.queryByTestId('rgl-grid')).not.toBeInTheDocument();
 
-        mockContainerWidth = 1200;
+        mockContainerWidth = 1201;
         rerender(
             <DashboardGrid
                 widgets={widgets}
@@ -247,7 +263,7 @@ describe('DashboardGrid', () => {
         );
 
         expect(screen.getByTestId('rgl-grid')).toBeInTheDocument();
-        expect(latestResponsiveProps?.width).toBe(1200);
+        expect(latestResponsiveProps?.width).toBe(1201);
     });
 
     it('places widgets without persisted layout below occupied area on narrow breakpoints', () => {
@@ -358,9 +374,9 @@ describe('DashboardGrid', () => {
             />
         );
 
-        expect(latestResponsiveProps?.width).toBe(1200);
+        expect(latestResponsiveProps?.width).toBe(1201);
 
-        mockContainerWidth = 1204;
+        mockContainerWidth = 1205;
         rerender(
             <DashboardGrid
                 widgets={widgets}
@@ -370,13 +386,13 @@ describe('DashboardGrid', () => {
             />
         );
 
-        expect(latestResponsiveProps?.width).toBe(1200);
+        expect(latestResponsiveProps?.width).toBe(1201);
 
         act(() => {
             vi.advanceTimersByTime(181);
         });
 
-        expect(latestResponsiveProps?.width).toBe(1204);
+        expect(latestResponsiveProps?.width).toBe(1205);
     });
 
     it('updates width immediately when a resize crosses breakpoint boundary', () => {
@@ -462,6 +478,7 @@ describe('DashboardGrid', () => {
         const widgets: WidgetItem[] = [{ id: '1', type: 'counter', title: 'Counter 1' }];
         const onLayoutChange = vi.fn();
         const onLayoutCommit = vi.fn();
+        mockContainerWidth = 769;
 
         render(
             <DashboardGrid
@@ -476,12 +493,37 @@ describe('DashboardGrid', () => {
         const layout: MockLayoutItem[] = [{ i: '1', x: 0, y: 2, w: 4, h: 4 }];
 
         act(() => {
-            latestResponsiveProps?.onBreakpointChange?.('sm', 6);
             latestResponsiveProps?.onDragStop?.(layout);
         });
 
         expect(onLayoutCommit).toHaveBeenCalledTimes(1);
         expect(onLayoutCommit).toHaveBeenCalledWith(layout, 'mobile', 6);
+    });
+
+    it('persists the initial measured breakpoint without waiting for onBreakpointChange', () => {
+        const widgets: WidgetItem[] = [{ id: '1', type: 'counter', title: 'Counter 1' }];
+        const onLayoutChange = vi.fn();
+        const onLayoutCommit = vi.fn();
+        mockContainerWidth = 768;
+
+        render(
+            <DashboardGrid
+                widgets={widgets}
+                onLayoutChange={onLayoutChange}
+                onLayoutCommit={onLayoutCommit}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        const layout: MockLayoutItem[] = [{ i: '1', x: 0, y: 2, w: 4, h: 4 }];
+
+        act(() => {
+            latestResponsiveProps?.onDragStop?.(layout);
+        });
+
+        expect(onLayoutCommit).toHaveBeenCalledTimes(1);
+        expect(onLayoutCommit).toHaveBeenCalledWith(layout, 'mobile', 4);
     });
 
     it('does not persist layouts when edit mode is disabled', () => {

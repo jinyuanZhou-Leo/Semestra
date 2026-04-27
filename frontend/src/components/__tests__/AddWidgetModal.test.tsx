@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AddWidgetModal } from '../AddWidgetModal';
@@ -51,5 +51,29 @@ describe('AddWidgetModal', () => {
     expect(screen.getByText('This dashboard does not have any widgets available to add right now.')).toBeInTheDocument();
     expect(screen.queryByText('Counter')).not.toBeInTheDocument();
     expect(screen.queryByText('World Clock')).not.toBeInTheDocument();
+  });
+
+  it('keeps the modal open when adding a widget returns false', async () => {
+    const onAdd = vi.fn().mockResolvedValue(false);
+    const onClose = vi.fn();
+
+    render(
+      <AddWidgetModal
+        isOpen
+        onClose={onClose}
+        onAdd={onAdd}
+        context="semester"
+        widgets={[]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Counter'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Widget' }));
+
+    await waitFor(() => {
+      expect(onAdd).toHaveBeenCalledWith('counter');
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText('Counter')).toBeInTheDocument();
   });
 });

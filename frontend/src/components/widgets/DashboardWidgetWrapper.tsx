@@ -1,4 +1,4 @@
-// input:  [widget item data, widget registry lookup, plugin lazy loader, runtime instance scope, update/remove callbacks including unavailable-widget override, widget-header glass control styles, and PluginErrorBoundary for render-time crash isolation]
+// input:  [widget item data, widget registry lookup, plugin lazy loader, runtime instance scope, update/remove callbacks including unavailable-widget override, browser-safe touch detection, widget-header glass control styles, and PluginErrorBoundary for render-time crash isolation]
 // output: [`DashboardWidgetWrapper` component]
 // pos:    [Runtime wrapper that mounts plugin widget content, provides widget runtime scope for plugin-local UI state, preserves unavailable-widget delete escape hatches, renders glassmorphism header controls into the dashboard shell, and isolates plugin render crashes to the affected widget only]
 //
@@ -39,7 +39,9 @@ import {
 import { jsonDeepEqual } from '../../plugin-system/utils';
 import { PluginWidgetSkeleton } from '../../plugin-system/PluginLoadSkeleton';
 
-const IS_TOUCH_DEVICE = window.matchMedia('(pointer: coarse)').matches;
+const IS_TOUCH_DEVICE = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(pointer: coarse)').matches;
 const headerControlSizeClass = IS_TOUCH_DEVICE ? 'h-9 w-9 text-base' : 'h-7 w-7 text-sm';
 const glassControlClass =
     'rounded-full border border-border/60 bg-background/82 text-muted-foreground/90 shadow-sm backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/68 transition-colors';
