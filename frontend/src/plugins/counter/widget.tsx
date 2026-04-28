@@ -12,8 +12,8 @@ import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugi
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldContent, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { AlertCircle, Minus, Plus, RotateCcw } from 'lucide-react';
 
 interface CounterSettings {
@@ -93,7 +93,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
     };
 
     return (
-        <div className="flex flex-col gap-4">
+        <FieldGroup>
             {validationMessages.length > 0 ? (
                 <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
@@ -104,20 +104,20 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                 </Alert>
             ) : null}
 
-            <div className="grid gap-2">
-                <Label htmlFor={`${formId}-display`}>Display Text</Label>
+            <Field>
+                <FieldLabel htmlFor={`${formId}-display`}>Display Text</FieldLabel>
                 <Input
                     id={`${formId}-display`}
                     value={counterSettings.displayText || ''}
                     onChange={e => applySettings({ displayText: e.target.value })}
                     placeholder="Enter custom text to display below counter"
                 />
-            </div>
+            </Field>
 
-            <div className="flex items-center justify-between rounded-md border p-3">
-                <Label htmlFor={`${formId}-show-ring`} className="cursor-pointer">
-                    Show Ring
-                </Label>
+            <Field orientation="horizontal">
+                <FieldContent>
+                    <FieldLabel htmlFor={`${formId}-show-ring`}>Show Ring</FieldLabel>
+                </FieldContent>
                 <Checkbox
                     id={`${formId}-show-ring`}
                     checked={counterSettings.showRing ?? true}
@@ -125,29 +125,29 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                         applySettings({ showRing: checked === true })
                     }
                 />
-            </div>
+            </Field>
 
-            <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                    <Label htmlFor={`${formId}-min`}>Min Value</Label>
+            <FieldGroup className="grid grid-cols-2 gap-3">
+                <Field>
+                    <FieldLabel htmlFor={`${formId}-min`}>Min Value</FieldLabel>
                     <Input
                         id={`${formId}-min`}
                         type="number"
                         value={counterSettings.min ?? 0}
                         onChange={e => applySettings({ min: Number(e.target.value) })}
                     />
-                </div>
-                <div className="grid gap-2">
-                    <Label htmlFor={`${formId}-max`}>Max Value</Label>
+                </Field>
+                <Field>
+                    <FieldLabel htmlFor={`${formId}-max`}>Max Value</FieldLabel>
                     <Input
                         id={`${formId}-max`}
                         type="number"
                         value={counterSettings.max ?? 100}
                         onChange={e => applySettings({ max: Number(e.target.value) })}
                     />
-                </div>
-                <div className="grid gap-2">
-                    <Label htmlFor={`${formId}-step`}>Step</Label>
+                </Field>
+                <Field>
+                    <FieldLabel htmlFor={`${formId}-step`}>Step</FieldLabel>
                     <Input
                         id={`${formId}-step`}
                         type="number"
@@ -155,18 +155,18 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                         onChange={e => applySettings({ step: Number(e.target.value) })}
                         min="1"
                     />
-                </div>
-                <div className="grid gap-2">
-                    <Label htmlFor={`${formId}-initial`}>Initial Value</Label>
+                </Field>
+                <Field>
+                    <FieldLabel htmlFor={`${formId}-initial`}>Initial Value</FieldLabel>
                     <Input
                         id={`${formId}-initial`}
                         type="number"
                         value={counterSettings.initialValue ?? 0}
                         onChange={e => applySettings({ initialValue: Number(e.target.value) })}
                     />
-                </div>
-            </div>
-        </div>
+                </Field>
+            </FieldGroup>
+        </FieldGroup>
     );
 };
 

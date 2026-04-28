@@ -10,8 +10,8 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugin-system';
 import { Button } from '@/components/ui/button';
+import { Field, FieldContent, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -253,10 +253,10 @@ const PomodoroSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, on
     }, [pomodoroSettings, updatePatch]);
 
     return (
-        <div className="grid gap-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-2">
-                    <Label htmlFor={`${fieldId}-focus`}>Focus minutes</Label>
+        <FieldGroup>
+            <FieldGroup className="grid gap-3 sm:grid-cols-2">
+                <Field>
+                    <FieldLabel htmlFor={`${fieldId}-focus`}>Focus minutes</FieldLabel>
                     <Input
                         id={`${fieldId}-focus`}
                         type="number"
@@ -265,10 +265,10 @@ const PomodoroSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, on
                         value={pomodoroSettings.focusMinutes}
                         onChange={(event) => updateDuration('focusMinutes', event.target.value)}
                     />
-                </div>
+                </Field>
 
-                <div className="grid gap-2">
-                    <Label htmlFor={`${fieldId}-short-break`}>Short break minutes</Label>
+                <Field>
+                    <FieldLabel htmlFor={`${fieldId}-short-break`}>Short break minutes</FieldLabel>
                     <Input
                         id={`${fieldId}-short-break`}
                         type="number"
@@ -277,10 +277,10 @@ const PomodoroSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, on
                         value={pomodoroSettings.shortBreakMinutes}
                         onChange={(event) => updateDuration('shortBreakMinutes', event.target.value)}
                     />
-                </div>
+                </Field>
 
-                <div className="grid gap-2">
-                    <Label htmlFor={`${fieldId}-long-break`}>Long break minutes</Label>
+                <Field>
+                    <FieldLabel htmlFor={`${fieldId}-long-break`}>Long break minutes</FieldLabel>
                     <Input
                         id={`${fieldId}-long-break`}
                         type="number"
@@ -289,10 +289,10 @@ const PomodoroSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, on
                         value={pomodoroSettings.longBreakMinutes}
                         onChange={(event) => updateDuration('longBreakMinutes', event.target.value)}
                     />
-                </div>
+                </Field>
 
-                <div className="grid gap-2">
-                    <Label htmlFor={`${fieldId}-interval`}>Long break interval</Label>
+                <Field>
+                    <FieldLabel htmlFor={`${fieldId}-interval`}>Long break interval</FieldLabel>
                     <Input
                         id={`${fieldId}-interval`}
                         type="number"
@@ -310,43 +310,49 @@ const PomodoroSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, on
                             });
                         }}
                     />
-                </div>
-            </div>
+                </Field>
+            </FieldGroup>
 
-            <div className="grid gap-2">
-                <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-                    <Label htmlFor={`${fieldId}-auto-break`} className="cursor-pointer">Auto start break</Label>
+            <FieldGroup>
+                <Field orientation="horizontal">
+                    <FieldContent>
+                        <FieldLabel htmlFor={`${fieldId}-auto-break`}>Auto start break</FieldLabel>
+                    </FieldContent>
                     <Switch
                         id={`${fieldId}-auto-break`}
                         checked={pomodoroSettings.autoStartBreak}
                         onCheckedChange={(checked) => updatePatch({ autoStartBreak: checked })}
                     />
-                </div>
+                </Field>
 
-                <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-                    <Label htmlFor={`${fieldId}-auto-focus`} className="cursor-pointer">Auto start focus</Label>
+                <Field orientation="horizontal">
+                    <FieldContent>
+                        <FieldLabel htmlFor={`${fieldId}-auto-focus`}>Auto start focus</FieldLabel>
+                    </FieldContent>
                     <Switch
                         id={`${fieldId}-auto-focus`}
                         checked={pomodoroSettings.autoStartFocus}
                         onCheckedChange={(checked) => updatePatch({ autoStartFocus: checked })}
                     />
-                </div>
+                </Field>
 
-                <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-                    <Label htmlFor={`${fieldId}-sound`} className="cursor-pointer">Sound enabled</Label>
+                <Field orientation="horizontal">
+                    <FieldContent>
+                        <FieldLabel htmlFor={`${fieldId}-sound`}>Sound enabled</FieldLabel>
+                    </FieldContent>
                     <Switch
                         id={`${fieldId}-sound`}
                         checked={pomodoroSettings.soundEnabled}
                         onCheckedChange={(checked) => updatePatch({ soundEnabled: checked })}
                     />
-                </div>
-            </div>
+                </Field>
+            </FieldGroup>
 
-            <div className="grid gap-2">
-                <div className="flex items-center justify-between">
-                    <Label htmlFor={`${fieldId}-volume`}>Notification volume</Label>
+            <Field>
+                <FieldContent className="flex-row items-center justify-between">
+                    <FieldLabel htmlFor={`${fieldId}-volume`}>Notification volume</FieldLabel>
                     <span className="text-xs text-muted-foreground">{Math.round(pomodoroSettings.volume * 100)}%</span>
-                </div>
+                </FieldContent>
                 <Slider
                     id={`${fieldId}-volume`}
                     min={0}
@@ -359,8 +365,8 @@ const PomodoroSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, on
                         updatePatch({ volume: clampNumber(nextVolume, 0, 1, pomodoroSettings.volume) });
                     }}
                 />
-            </div>
-        </div>
+            </Field>
+        </FieldGroup>
     );
 };
 

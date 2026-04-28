@@ -155,7 +155,7 @@ function WidgetContainerComponent({ children, onRemove, onEdit, headerButtons, i
                                         title="Remove Widget"
                                         data-widget-control
                                         className={cn(
-                                            'rounded-full border border-destructive/30 bg-destructive/10 text-destructive shadow-sm transition hover:bg-destructive/15 hover:text-destructive',
+                                            'rounded-full border border-destructive/30 bg-background/82 text-destructive shadow-sm backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/68 transition-colors hover:bg-destructive/10 hover:text-destructive supports-[backdrop-filter]:hover:bg-destructive/10',
                                             controlSizeClass,
                                             controlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
                                         )}

@@ -67,6 +67,23 @@ describe('WidgetContainer', () => {
         expect(screen.queryByTitle('Widget actions')).not.toBeInTheDocument();
     });
 
+    it('renders the remove widget button with glass styling and destructive emphasis', () => {
+        setupMatchMedia(true);
+        Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
+
+        render(
+            <WidgetContainer id="widget-touch" isEditMode onRemove={() => { }}>
+                <div>Widget Content</div>
+            </WidgetContainer>
+        );
+
+        const removeButton = screen.getByTitle('Remove Widget');
+        expect(removeButton).toHaveClass('bg-background/82');
+        expect(removeButton).toHaveClass('backdrop-blur-md');
+        expect(removeButton).toHaveClass('text-destructive');
+        expect(removeButton).not.toHaveClass('bg-destructive/10');
+    });
+
     it('keeps corner docks click-through while controls remain interactive', () => {
         setupMatchMedia(false);
         Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });

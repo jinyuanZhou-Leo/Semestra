@@ -13,7 +13,6 @@ import type { WidgetUpdateData } from "../services/widgetRegistry";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { StatusButton } from "./StatusButton";
 import {
   getResolvedWidgetMetadataByType,
@@ -79,21 +78,19 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
   if (!SettingsComponent) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]">
-          <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
-            <DialogTitle className="text-base font-semibold">{displayWidgetName} Settings</DialogTitle>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>{displayWidgetName} Settings</DialogTitle>
             <DialogDescription className="sr-only">
               Configure settings for {displayWidgetName}.
             </DialogDescription>
           </DialogHeader>
-          <div className="px-6 py-5">
-            <Alert className="bg-background">
-              <AlertTitle>Settings unavailable</AlertTitle>
-              <AlertDescription>
-                No settings are available for this widget type.
-              </AlertDescription>
-            </Alert>
-          </div>
+          <Alert>
+            <AlertTitle>Settings unavailable</AlertTitle>
+            <AlertDescription>
+              No settings are available for this widget type.
+            </AlertDescription>
+          </Alert>
         </DialogContent>
       </Dialog>
     );
@@ -106,32 +103,26 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
         if (!open && saveState !== "saving") onClose();
       }}
     >
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]">
-        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
-          <DialogTitle className="text-base font-semibold">
-            {displayWidgetName} Settings
-          </DialogTitle>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>{displayWidgetName} Settings</DialogTitle>
           <DialogDescription className="sr-only">
             Configure settings for {displayWidgetName}.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="flex flex-col gap-4 px-6 py-5">
-              <SettingsComponent
-                widgetId={activeWidget?.id}
-                semesterId={semesterId}
-                courseId={courseId}
-                settings={draftSettings}
-                onSettingsChange={setDraftSettings}
-              />
-            </div>
-          </ScrollArea>
-          <DialogFooter className="mx-0 mb-0 shrink-0 rounded-b-xl border-t bg-background px-6 pt-4 pb-6">
+        <form onSubmit={handleSave} className="flex flex-col gap-4">
+          <SettingsComponent
+            widgetId={activeWidget?.id}
+            semesterId={semesterId}
+            courseId={courseId}
+            settings={draftSettings}
+            onSettingsChange={setDraftSettings}
+          />
+          <DialogFooter>
             <DialogClose asChild>
               <Button
                 type="button"
-                variant="secondary"
+                variant="outline"
                 disabled={saveState === "saving"}
               >
                 Cancel

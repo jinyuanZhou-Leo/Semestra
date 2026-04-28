@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugin-system';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
+import { Field, FieldContent, FieldGroup, FieldLabel } from '@/components/ui/field';
 import {
     Select,
     SelectContent,
@@ -57,13 +57,13 @@ const WorldClockSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, 
     const showSeconds = normalizedSettings.showSeconds;
 
     return (
-        <div className="grid gap-4">
-            <div className="grid gap-2">
-                <Label htmlFor="world-clock-timezone">Timezone</Label>
+        <FieldGroup>
+            <Field>
+                <FieldLabel htmlFor="world-clock-timezone">Timezone</FieldLabel>
                 <Select value={normalizedSettings.timezone}
                     onValueChange={(timezone) => onSettingsChange({ ...normalizedSettings, timezone })}
                 >
-                    <SelectTrigger id="world-clock-timezone" className="h-10 pr-8">
+                    <SelectTrigger id="world-clock-timezone">
                         <SelectValue placeholder="Select timezone" />
                     </SelectTrigger>
                     <SelectContent>
@@ -77,12 +77,12 @@ const WorldClockSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, 
                         </SelectGroup>
                     </SelectContent>
                 </Select>
-            </div>
+            </Field>
 
-            <div className="flex items-center justify-between rounded-md border p-3">
-                <Label htmlFor="world-clock-show-seconds" className="cursor-pointer">
-                    Show Seconds
-                </Label>
+            <Field orientation="horizontal">
+                <FieldContent>
+                    <FieldLabel htmlFor="world-clock-show-seconds">Show Seconds</FieldLabel>
+                </FieldContent>
                 <Checkbox
                     id="world-clock-show-seconds"
                     checked={showSeconds}
@@ -90,8 +90,8 @@ const WorldClockSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, 
                         onSettingsChange({ ...normalizedSettings, showSeconds: checked === true })
                     }
                 />
-            </div>
-        </div>
+            </Field>
+        </FieldGroup>
     );
 };
 

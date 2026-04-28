@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, Link2 } from 'lucide-react';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
-import { Label } from '@/components/ui/label';
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import {
     Select,
     SelectContent,
@@ -191,9 +191,9 @@ const CourseResourcesWidgetSettingsComponent: React.FC<WidgetSettingsProps> = ({
     const selectedSet = new Set(resourceOptions.map((resource) => resource.id));
 
     return (
-        <div className="grid gap-4">
-            <div className="grid gap-2">
-                <Label htmlFor="course-resources-slot-count">Quick-open cards</Label>
+        <FieldGroup>
+            <Field>
+                <FieldLabel htmlFor="course-resources-slot-count">Quick-open cards</FieldLabel>
                 <Select
                     value={String(resolved.slotCount)}
                     onValueChange={(value) => {
@@ -214,19 +214,19 @@ const CourseResourcesWidgetSettingsComponent: React.FC<WidgetSettingsProps> = ({
                         </SelectGroup>
                     </SelectContent>
                 </Select>
-            </div>
+            </Field>
 
             {resourcesQuery.isLoading ? (
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                     {[0, 1].map((index) => (
                         <Skeleton key={index} className="h-10 rounded-md" />
                     ))}
                 </div>
             ) : (
-                <div className="grid gap-3">
+                <FieldGroup className="gap-3">
                     {resolved.resourceIds.map((resourceId, index) => (
-                        <div key={index} className="grid gap-2">
-                            <Label htmlFor={`course-resource-slot-${index}`}>Slot {index + 1}</Label>
+                        <Field key={index}>
+                            <FieldLabel htmlFor={`course-resource-slot-${index}`}>Slot {index + 1}</FieldLabel>
                             <Select
                                 value={resourceId || '__empty__'}
                                 onValueChange={(value) => {
@@ -250,20 +250,20 @@ const CourseResourcesWidgetSettingsComponent: React.FC<WidgetSettingsProps> = ({
                                 </SelectContent>
                             </Select>
                             {resourceId && !selectedSet.has(resourceId) ? (
-                                <p className="text-xs text-amber-600 dark:text-amber-400">
+                                <FieldDescription>
                                     This file was removed. Pick another file to keep the slot active.
-                                </p>
+                                </FieldDescription>
                             ) : null}
-                        </div>
+                        </Field>
                     ))}
                     {resourceOptions.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
+                        <FieldDescription>
                             Upload files in the Course Resources tab before assigning quick-open shortcuts.
-                        </p>
+                        </FieldDescription>
                     ) : null}
-                </div>
+                </FieldGroup>
             )}
-        </div>
+        </FieldGroup>
     );
 };
 

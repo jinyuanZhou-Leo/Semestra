@@ -17,8 +17,8 @@ import type {
 } from '@/plugin-system';
 import { Button } from '@/components/ui/button';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
+import { Field, FieldContent, FieldGroup, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
@@ -520,21 +520,21 @@ const HabitSharedSettingsFields = <TSettings extends HabitStreakSettings>({
     }, [onSettingsChange, settings]);
 
     return (
-        <div className="grid gap-4">
-            <div className="grid gap-2">
-                <Label htmlFor={`${ids}-habit-name`}>Habit</Label>
+        <FieldGroup>
+            <Field>
+                <FieldLabel htmlFor={`${ids}-habit-name`}>Habit</FieldLabel>
                 <Input
                     id={`${ids}-habit-name`}
                     value={settings.habitName}
                     placeholder="Review notes"
                     onChange={(event) => updateSettings({ habitName: event.target.value } as Partial<TSettings>)}
                 />
-            </div>
+            </Field>
 
-            <div className={cn('grid gap-3', showCadence && 'sm:grid-cols-2')}>
+            <FieldGroup className={cn('grid gap-3', showCadence && 'sm:grid-cols-2')}>
                 {showCadence ? (
-                    <div className="grid gap-2">
-                        <Label htmlFor={`${ids}-interval-hours`}>Check-in cadence</Label>
+                    <Field>
+                        <FieldLabel htmlFor={`${ids}-interval-hours`}>Check-in cadence</FieldLabel>
                         <Select
                             value={String(settings.checkInIntervalHours)}
                             onValueChange={(value) => updateSettings({ checkInIntervalHours: clampIntervalHours(value) } as Partial<TSettings>)}
@@ -552,11 +552,11 @@ const HabitSharedSettingsFields = <TSettings extends HabitStreakSettings>({
                                 </SelectGroup>
                             </SelectContent>
                         </Select>
-                    </div>
+                    </Field>
                 ) : null}
 
-                <div className="grid gap-2">
-                    <Label htmlFor={`${ids}-target-streak`}>Target streak (count)</Label>
+                <Field>
+                    <FieldLabel htmlFor={`${ids}-target-streak`}>Target streak (count)</FieldLabel>
                     <Input
                         id={`${ids}-target-streak`}
                         type="number"
@@ -564,11 +564,11 @@ const HabitSharedSettingsFields = <TSettings extends HabitStreakSettings>({
                         value={settings.targetStreak}
                         onChange={(event) => updateSettings({ targetStreak: clampTargetStreak(event.target.value) } as Partial<TSettings>)}
                     />
-                </div>
-            </div>
+                </Field>
+            </FieldGroup>
 
             {extraFooter}
-        </div>
+        </FieldGroup>
     );
 };
 
@@ -606,21 +606,21 @@ const HabitStreakRingSettingsComponent: React.FC<WidgetSettingsProps<HabitStreak
             onSettingsChange={onSettingsChange}
             showCadence
             extraFooter={(
-                <div className="flex items-center justify-between gap-4 pt-2">
-                    <div className="grid gap-0.5">
-                        <Label htmlFor="habit-ring-motivational-msg" className="cursor-pointer text-sm font-medium">
+                <Field orientation="horizontal">
+                    <FieldContent>
+                        <FieldLabel htmlFor="habit-ring-motivational-msg">
                             Encouragement on check-in
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
+                        </FieldLabel>
+                        <FieldDescription>
                             Show a motivational message each time you check in from the ring widget.
-                        </p>
-                    </div>
+                        </FieldDescription>
+                    </FieldContent>
                     <Switch
                         id="habit-ring-motivational-msg"
                         checked={ringSettings.showMotivationalMessage}
                         onCheckedChange={handleToggleMotivationalMessage}
                     />
-                </div>
+                </Field>
             )}
         />
     );

@@ -2,8 +2,8 @@
 import React, { useCallback, useId } from 'react';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugin-system';
 import { ColorPicker, type ColorPickerPreset } from '@/components/ui/color-picker';
+import { Field, FieldContent, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Eraser, Lock, LockOpen } from 'lucide-react';
@@ -87,49 +87,51 @@ const StickyNoteSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, 
     }, [noteSettings, onSettingsChange]);
 
     return (
-        <div className="grid gap-4">
-            <div className="grid gap-2">
-                <Label htmlFor={`${ids}-title`}>Title</Label>
+        <FieldGroup>
+            <Field>
+                <FieldLabel htmlFor={`${ids}-title`}>Title</FieldLabel>
                 <Input
                     id={`${ids}-title`}
                     value={noteSettings.title}
                     placeholder="Edit note title"
                     onChange={(event) => updateSettings({ title: event.target.value })}
                 />
-            </div>
+            </Field>
 
-            <ColorPicker
-                id={`${ids}-accent-color`}
-                label="Color"
-                value={noteSettings.accentColor}
-                onChange={(accentColor) => updateSettings({ accentColor })}
-                defaultColor={DEFAULT_STICKY_NOTE_SETTINGS.accentColor}
-                presetColors={STICKY_NOTE_COLOR_PRESETS}
-                triggerAriaLabel="Choose sticky note color"
-            />
+            <Field>
+                <FieldLabel htmlFor={`${ids}-accent-color-native`}>Color</FieldLabel>
+                <ColorPicker
+                    id={`${ids}-accent-color`}
+                    value={noteSettings.accentColor}
+                    onChange={(accentColor) => updateSettings({ accentColor })}
+                    defaultColor={DEFAULT_STICKY_NOTE_SETTINGS.accentColor}
+                    presetColors={STICKY_NOTE_COLOR_PRESETS}
+                    triggerAriaLabel="Choose sticky note color"
+                />
+            </Field>
 
-            <div className="flex items-center justify-between rounded-md border p-3">
-                <Label htmlFor={`${ids}-show-title`} className="cursor-pointer">
-                    Show Title Input
-                </Label>
+            <Field orientation="horizontal">
+                <FieldContent>
+                    <FieldLabel htmlFor={`${ids}-show-title`}>Show Title Input</FieldLabel>
+                </FieldContent>
                 <Switch
                     id={`${ids}-show-title`}
                     checked={noteSettings.showTitle}
                     onCheckedChange={(checked) => updateSettings({ showTitle: checked })}
                 />
-            </div>
+            </Field>
 
-            <div className="flex items-center justify-between rounded-md border p-3">
-                <Label htmlFor={`${ids}-show-char-count`} className="cursor-pointer">
-                    Show Character Count
-                </Label>
+            <Field orientation="horizontal">
+                <FieldContent>
+                    <FieldLabel htmlFor={`${ids}-show-char-count`}>Show Character Count</FieldLabel>
+                </FieldContent>
                 <Switch
                     id={`${ids}-show-char-count`}
                     checked={noteSettings.showCharCount}
                     onCheckedChange={(checked) => updateSettings({ showCharCount: checked })}
                 />
-            </div>
-        </div>
+            </Field>
+        </FieldGroup>
     );
 };
 
