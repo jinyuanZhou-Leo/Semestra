@@ -519,14 +519,30 @@ export function DataTable<T>({
     const pageStartIndex = hasPagination ? (visiblePage - 1) * paginationPageSize : 0;
 
     const warnedIndexKeyRef = useRef(false);
+    const usesSortableColumns = columns?.some((c) => c.sortable) ?? false;
+    const shouldWarnIndexKeyFallback = Boolean(
+        process.env.NODE_ENV !== 'production'
+        && usesSortableColumns
+        && !getRowKey
+        && displayItems.some((item) => {
+            const id = (item as Record<string, unknown>).id;
+            return id === undefined || id === null;
+        }),
+    );
+
+    useEffect(() => {
+        if (!shouldWarnIndexKeyFallback || warnedIndexKeyRef.current) {
+            return;
+        }
+
+        warnedIndexKeyRef.current = true;
+        console.warn('[DataTable] Sortable columns detected but no getRowKey provided. Falling back to index keys may cause reconciliation issues when rows reorder.');
+    }, [shouldWarnIndexKeyFallback]);
+
     const resolveRowKey = (item: T, index: number): Key => {
         if (getRowKey) return getRowKey(item, index);
         const id = (item as Record<string, unknown>).id;
         if (id !== undefined && id !== null) return String(id);
-        if (process.env.NODE_ENV !== 'production' && !warnedIndexKeyRef.current && columns?.some((c) => c.sortable)) {
-            warnedIndexKeyRef.current = true;
-            console.warn('[DataTable] Sortable columns detected but no getRowKey provided. Falling back to index keys may cause reconciliation issues when rows reorder.');
-        }
         return index;
     };
 
