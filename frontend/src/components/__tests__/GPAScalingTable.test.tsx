@@ -15,8 +15,8 @@ describe('GPAScalingTable', () => {
     it('renders the shared empty state when no rules are defined', () => {
         render(<GPAScalingTable value="{}" onChange={vi.fn()} />);
 
-        expect(screen.getByText('No scaling rules defined')).toBeInTheDocument();
-        expect(screen.getByText('Add a rule below to get started.')).toBeInTheDocument();
+        expect(screen.getByText('No scaling rules defined.')).toBeInTheDocument();
+        expect(screen.getByText('This table is empty right now.')).toBeInTheDocument();
     });
 
     it('warns when a decimal gap exists between configured rules', () => {
@@ -27,12 +27,13 @@ describe('GPAScalingTable', () => {
         ).toBeInTheDocument();
     });
 
-    it('requires confirmation before deleting a rule', () => {
+    it('requires confirmation before deleting a rule', async () => {
         const onChange = vi.fn();
 
         render(<GPAScalingTable value='{"90-100":4,"80-89":3.7}' onChange={onChange} />);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove rule 80–89' }));
+        fireEvent.pointerDown(screen.getByRole('button', { name: 'Actions for 80–89' }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete rule' }));
 
         expect(screen.getByText('Delete scaling rule?')).toBeInTheDocument();
         expect(onChange).not.toHaveBeenCalled();

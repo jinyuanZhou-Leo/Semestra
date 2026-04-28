@@ -134,7 +134,7 @@ describe('SemesterCourseManagementSection', () => {
         render(<SemesterCourseManagementSection semesterId="semester-1" />);
 
         const table = await screen.findByRole('table');
-        const minWidthWrapper = table.parentElement?.parentElement;
+        const minWidthWrapper = table.parentElement;
 
         expect(minWidthWrapper).toHaveClass('min-w-[34rem]', 'sm:min-w-[38rem]');
         expect(minWidthWrapper).not.toHaveClass('min-w-[720px]');

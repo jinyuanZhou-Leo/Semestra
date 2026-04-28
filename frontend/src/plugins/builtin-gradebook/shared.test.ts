@@ -268,7 +268,7 @@ describe('builtin-gradebook shared helpers', () => {
     it('projects semester what-if results from course final percentages', () => {
         const courses = [
             buildSemesterCourse({ id: 'course-1', credits: 3, grade_scaled: 4, grade_percentage: 90, include_in_gpa: true }),
-            buildSemesterCourse({ id: 'course-2', credits: 1, grade_scaled: 3, grade_percentage: 80, include_in_gpa: true }),
+            buildSemesterCourse({ id: 'course-2', credits: 1, grade_scaled: 0, grade_percentage: 0, include_in_gpa: true }),
             buildSemesterCourse({ id: 'course-3', credits: 1, grade_scaled: 4, grade_percentage: 95, include_in_gpa: false }),
         ];
 

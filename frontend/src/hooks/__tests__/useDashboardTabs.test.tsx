@@ -78,12 +78,12 @@ describe('useDashboardTabs', () => {
         }));
 
         expect(result.current.tabs.map((tab) => tab.id)).toEqual([
-            'course:1:todo',
-            'course:1:gradebook',
+            'course:course-1:builtin-todo',
+            'course:course-1:builtin-gradebook',
         ]);
 
         act(() => {
-            result.current.reorderTabs(['course:1:gradebook', 'course:1:todo']);
+            result.current.reorderTabs(['course:course-1:builtin-gradebook', 'course:course-1:builtin-todo']);
         });
 
         await act(async () => {
@@ -91,8 +91,8 @@ describe('useDashboardTabs', () => {
         });
 
         expect(result.current.tabs.map((tab) => tab.id)).toEqual([
-            'course:1:gradebook',
-            'course:1:todo',
+            'course:course-1:builtin-gradebook',
+            'course:course-1:builtin-todo',
         ]);
 
         unmount();
@@ -137,7 +137,7 @@ describe('useDashboardTabs', () => {
         expect(result.current.tabs).toHaveLength(2);
 
         act(() => {
-            result.current.reorderTabs(['semester:1:todo']);
+            result.current.reorderTabs(['semester:semester-1:builtin-todo']);
         });
 
         await act(async () => {
@@ -145,8 +145,8 @@ describe('useDashboardTabs', () => {
         });
 
         expect(result.current.tabs.map((tab) => tab.id)).toEqual([
-            'semester:1:dashboard',
-            'semester:1:todo',
+            'semester:semester-1:builtin-dashboard',
+            'semester:semester-1:builtin-todo',
         ]);
 
         unmount();

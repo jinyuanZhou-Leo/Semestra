@@ -442,12 +442,28 @@ describe('BuiltinGradebookTab', () => {
     it('updates semester what-if projection without calling course gradebook APIs', async () => {
         const getCourseGradebookSpy = vi.spyOn(api, 'getCourseGradebook');
         vi.mocked(courseGradebookQuery.useCourseGradebookQuery).mockClear();
+        vi.mocked(semesterDataContext.useSemesterData).mockReturnValue({
+            semester: buildSemester({
+                courses: [
+                    buildCourse({ id: 'course-1', name: 'Algorithms', alias: 'CSC301', category: 'CS', credits: 3, grade_percentage: 90, grade_scaled: 4, include_in_gpa: true }),
+                    buildCourse({ id: 'course-2', name: 'Studio', alias: 'DES200', category: 'Design', credits: 1, grade_percentage: 0, grade_scaled: 0, include_in_gpa: true }),
+                    buildCourse({ id: 'course-3', name: 'Seminar', category: 'Breadth', credits: 1, grade_percentage: 50, grade_scaled: 0, include_in_gpa: false }),
+                ],
+            }),
+            setSemester: vi.fn(),
+            updateSemester: vi.fn(),
+            saveSemester: vi.fn(),
+            refreshSemester: vi.fn(),
+            isLoading: false,
+        });
         renderSemesterGradebookTab();
 
         fireEvent.click(screen.getByLabelText('Toggle Plan Mode'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Enter Plan Mode' }));
 
         const whatIfInputs = await screen.findAllByPlaceholderText('What if');
-        fireEvent.change(whatIfInputs[1]!, { target: { value: '100' } });
+        expect(whatIfInputs).toHaveLength(1);
+        fireEvent.change(whatIfInputs[0]!, { target: { value: '100' } });
 
         await waitFor(() => {
             expect(screen.getByText('92.5%')).toBeInTheDocument();

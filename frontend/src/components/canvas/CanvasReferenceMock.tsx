@@ -46,7 +46,7 @@ interface CanvasReferenceCourseContentProps {
   className?: string;
 }
 
-export const CanvasReferenceCourseContent = ({
+const CanvasReferenceCourseContent = ({
   compact = false,
   className,
 }: CanvasReferenceCourseContentProps) => (

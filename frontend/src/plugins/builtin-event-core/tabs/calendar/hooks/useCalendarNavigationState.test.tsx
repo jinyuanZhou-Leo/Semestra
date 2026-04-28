@@ -8,7 +8,7 @@
 
 import { act, renderHook } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PluginRuntimeInstanceProvider, resetPluginUiStateCacheForTests } from '@/plugin-system';
 import { useCalendarNavigationState } from './useCalendarNavigationState';
 
@@ -22,6 +22,10 @@ const buildRange = () => ({
 describe('useCalendarNavigationState', () => {
   beforeEach(() => {
     resetPluginUiStateCacheForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -74,6 +78,9 @@ describe('useCalendarNavigationState', () => {
   });
 
   it('preserves month anchor on same-semester rerenders', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-03T12:00:00'));
+
     const { result, rerender } = renderHook((props: {
       semesterId: string;
       semesterRange: ReturnType<typeof buildRange>;
