@@ -32,7 +32,7 @@ export const CanvasGradebookRecommendationCard: React.FC<CanvasGradebookRecommen
     canvasHref,
     onOpenGradebook,
 }) => (
-    <section className="overflow-hidden rounded-2xl border border-border/70 bg-[linear-gradient(135deg,rgba(230,174,140,0.1),rgba(168,206,207,0.14))] p-4 dark:bg-[linear-gradient(135deg,rgba(116,82,66,0.2),rgba(74,110,114,0.24))]">
+    <section className="overflow-hidden rounded-2xl border border-border/70 bg-muted/50 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl space-y-1">
                 <h2 className="text-base font-semibold text-foreground">Manage {sectionLabel.toLowerCase()} in Gradebook</h2>
@@ -46,7 +46,7 @@ export const CanvasGradebookRecommendationCard: React.FC<CanvasGradebookRecommen
                     <ArrowRight className="size-4" />
                 </Button>
                 {canvasHref ? (
-                    <Button asChild type="button" size="sm" variant="outline" className="min-w-32 bg-background/75">
+                    <Button asChild type="button" size="sm" variant="outline" className="min-w-32">
                         <a href={canvasHref} target="_blank" rel="noreferrer">
                             Open in Canvas
                         </a>
@@ -135,16 +135,16 @@ export const CanvasAssignmentsView: React.FC<{
                     <button
                         key={assignment.external_id}
                         type="button"
+                        aria-current={selectedAssignmentId === assignment.external_id ? 'true' : undefined}
                         className={cn(
-                            'flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/35',
-                            selectedAssignmentId === assignment.external_id ? 'bg-primary/5' : '',
+                            'flex min-h-11 w-full items-start justify-between gap-4 border-l-2 border-transparent px-5 py-4 text-left transition-colors hover:bg-muted/30',
+                            selectedAssignmentId === assignment.external_id ? 'border-primary bg-primary/10' : '',
                         )}
                         onClick={() => openExternalUrl(assignment.html_url)}
-                        aria-current={selectedAssignmentId === assignment.external_id ? 'true' : undefined}
                     >
                         <div className="min-w-0 space-y-2">
                             <div className="flex flex-wrap items-center gap-2">
-                                <div className="inline-flex size-8 items-center justify-center rounded-xl bg-muted/55 text-muted-foreground">
+                                <div className="inline-flex size-8 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground">
                                     <FileSpreadsheet className="size-4" />
                                 </div>
                                 <h3
@@ -245,7 +245,7 @@ export const CanvasGradesView: React.FC<{
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 space-y-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <div className="inline-flex size-8 items-center justify-center rounded-xl bg-muted/55 text-muted-foreground">
+                                    <div className="inline-flex size-8 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground">
                                         <ChartColumnIncreasing className="size-4" />
                                     </div>
                                     <h3 className="text-base font-semibold text-foreground">

@@ -148,6 +148,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
 
         tryAttachHeader();
         if (!observedHeader && typeof MutationObserver !== 'undefined') {
+            const mutationRoot = document.getElementById('root') ?? document.body;
             mutationObserver = new MutationObserver(() => {
                 tryAttachHeader();
                 if (observedHeader) {
@@ -155,7 +156,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                     mutationObserver = null;
                 }
             });
-            mutationObserver.observe(document.body, { childList: true, subtree: true });
+            mutationObserver.observe(mutationRoot, { childList: true, subtree: true });
         }
 
         window.addEventListener('resize', scheduleUpdate);
@@ -313,7 +314,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         ...CANVAS_QUERY_OPTIONS,
     });
 
-    const canvasOrigin = resolveCanvasOrigin(
+    const canvasOrigin = React.useMemo(() => resolveCanvasOrigin(
         navigation?.front_page_url,
         ...(navigation?.tabs.map((tab) => tab.html_url) ?? []),
         activePageQuery.data?.html_url,
@@ -323,7 +324,16 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         ...announcements.map((announcement) => announcement.html_url),
         ...assignments.map((assignment) => assignment.html_url),
         ...quizzes.map((quiz) => quiz.html_url),
-    );
+    ), [
+        navigation,
+        activePageQuery.data?.html_url,
+        selectedAnnouncement?.html_url,
+        syllabusQuery.data?.html_url,
+        pages,
+        announcements,
+        assignments,
+        quizzes,
+    ]);
 
     const sectionEntryState = React.useMemo(() => ({
         pagesEntryId: sectionEntries.find((entry) => entry.section === 'pages')?.id ?? 'pages',
@@ -722,12 +732,12 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
     return (
         <div className="grid h-full min-h-0 min-w-0 gap-4 lg:grid-cols-[11.75rem_minmax(0,1fr)]">
             <aside
+                aria-label="Canvas course menu"
                 className="min-h-0 rounded-2xl border border-border/60 bg-background p-3 lg:sticky lg:self-start"
                 style={{ top: `${railStickyTop}px` }}
             >
                 <div className="mb-3 px-1">
-                    <p className="text-sm font-semibold text-foreground">Course menu</p>
-                    <p className="text-xs text-muted-foreground">Canvas course menu</p>
+                    <h2 className="text-sm font-semibold text-foreground">Course menu</h2>
                 </div>
 
                 <div className="space-y-1">

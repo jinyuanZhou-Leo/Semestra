@@ -128,9 +128,10 @@ export const CanvasPageListView: React.FC<{
                     <button
                         key={String(page.page_id)}
                         type="button"
+                        aria-current={selectedPageRef === page.url ? 'true' : undefined}
                         className={cn(
-                            'flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/40',
-                            selectedPageRef === page.url ? 'bg-primary/5' : '',
+                            'flex min-h-11 w-full items-start justify-between gap-4 border-l-2 border-transparent px-5 py-4 text-left transition-colors hover:bg-muted/50',
+                            selectedPageRef === page.url ? 'border-primary bg-primary/10' : '',
                         )}
                         onClick={() => onSelectPage(
                             page.url,

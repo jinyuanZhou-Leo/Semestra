@@ -50,12 +50,12 @@ export const CanvasQuizzesView: React.FC<{
                     <button
                         key={quiz.quiz_id}
                         type="button"
+                        aria-current={selectedQuizId === quiz.quiz_id ? 'true' : undefined}
                         className={cn(
-                            'flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/40',
-                            selectedQuizId === quiz.quiz_id ? 'bg-primary/5' : '',
+                            'flex min-h-11 w-full items-start justify-between gap-4 border-l-2 border-transparent px-5 py-4 text-left transition-colors hover:bg-muted/50',
+                            selectedQuizId === quiz.quiz_id ? 'border-primary bg-primary/10' : '',
                         )}
                         onClick={() => openExternalUrl(quiz.html_url)}
-                        aria-current={selectedQuizId === quiz.quiz_id ? 'true' : undefined}
                     >
                         <div className="min-w-0 space-y-2">
                             <div className="flex flex-wrap items-center gap-2">

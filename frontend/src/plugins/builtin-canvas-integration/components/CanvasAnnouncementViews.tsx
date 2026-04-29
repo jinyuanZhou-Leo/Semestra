@@ -60,9 +60,10 @@ export const CanvasAnnouncementListView: React.FC<{
                     <button
                         key={announcement.announcement_id}
                         type="button"
+                        aria-current={selectedAnnouncementId === announcement.announcement_id ? 'true' : undefined}
                         className={cn(
-                            'flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/40',
-                            selectedAnnouncementId === announcement.announcement_id ? 'bg-primary/5' : '',
+                            'flex min-h-11 w-full items-start justify-between gap-4 border-l-2 border-transparent px-5 py-4 text-left transition-colors hover:bg-muted/50',
+                            selectedAnnouncementId === announcement.announcement_id ? 'border-primary bg-primary/10' : '',
                         )}
                         onClick={() => onSelectAnnouncement(
                             announcement.announcement_id,

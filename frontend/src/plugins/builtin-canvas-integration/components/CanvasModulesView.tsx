@@ -47,12 +47,8 @@ const isModuleItemExternal = (item: LmsModuleItem) => {
 };
 
 const MODULE_ROW_HEIGHT_ESTIMATE = 44;
-const MODULE_HEADER_HEIGHT_ESTIMATE = 50;
 const MODULE_EMPTY_STATE_HEIGHT_ESTIMATE = 72;
-const MODULE_SECTION_GAP = 16;
-const MODULE_WINDOW_OVERSCAN = 720;
 const MODULE_DEFAULT_ITEM_COUNT_ESTIMATE = 6;
-const MODULE_DEFAULT_VIEWPORT_HEIGHT = 720;
 const FILE_TEXT_MIME_PREFIXES = ['text/', 'application/json', 'application/xml', 'image/svg+xml'];
 
 const buildModuleFileDownloadUrl = (courseId: string, moduleId: string, moduleItemId: string) => (
@@ -124,10 +120,6 @@ const getEstimatedModuleBodyHeight = (moduleItem: LmsModuleSummary) => {
     );
 };
 
-const getEstimatedModuleHeight = (moduleItem: LmsModuleSummary, isOpen: boolean) => {
-    return MODULE_HEADER_HEIGHT_ESTIMATE + (isOpen ? getEstimatedModuleBodyHeight(moduleItem) : 0);
-};
-
 type CanvasModuleItemRowProps = {
     item: LmsModuleItem;
     onSelectItem: (item: LmsModuleItem) => void;
@@ -155,7 +147,7 @@ const CanvasModuleItemRow = React.memo(function CanvasModuleItemRow({
     return (
         <button
             type="button"
-            className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/60"
+            className="flex min-h-11 w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50"
             onClick={() => {
                 if (isExternalItem) {
                     openExternalUrl(externalUrl);
@@ -339,21 +331,21 @@ const CanvasModuleFilePreview: React.FC<{
                         data={directUrl ?? blobUrl ?? undefined}
                         type="application/pdf"
                         aria-label={`${title} preview`}
-                        className="h-[72vh] w-full"
+                        className="h-full min-h-[24rem] w-full"
                     >
                         <div className="p-5 text-sm text-muted-foreground">
                             Your browser cannot render this PDF inline.
                         </div>
                     </object>
                 ) : previewKind === 'text' ? (
-                    <pre className="min-h-full bg-muted/20 p-5 text-sm leading-6 text-foreground whitespace-pre-wrap">
+                    <pre className="min-h-full bg-muted/30 p-5 text-sm leading-6 text-foreground whitespace-pre-wrap">
                         {textContent || 'This file is empty.'}
                     </pre>
                 ) : blobUrl ? (
                     <object
                         data={blobUrl}
                         type={mimeType || undefined}
-                        className="h-[72vh] w-full"
+                        className="h-full min-h-[24rem] w-full"
                     >
                         <div className="p-5 text-sm text-muted-foreground">
                             Your browser cannot render this file inline.
@@ -595,13 +587,18 @@ const CanvasModuleSection = React.memo(function CanvasModuleSection({
                 <CollapsibleTrigger asChild>
                     <button
                         type="button"
-                        className="flex w-full items-center gap-3 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/35"
+                        className="flex min-h-11 w-full items-center gap-3 bg-muted/30 px-4 py-3 text-left transition-colors hover:bg-muted/30"
                     >
                         <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/module:rotate-90" />
                         <div className="min-w-0 flex-1">
                             <h3 className="truncate text-base font-semibold text-foreground">{moduleItem.name}</h3>
                         </div>
-                        <span className="shrink-0 text-xs text-muted-foreground">{moduleItem.item_count}</span>
+                        <span
+                            aria-label={`${moduleItem.item_count} item${moduleItem.item_count === 1 ? '' : 's'}`}
+                            className="shrink-0 text-xs text-muted-foreground"
+                        >
+                            {moduleItem.item_count}
+                        </span>
                     </button>
                 </CollapsibleTrigger>
                 {isOpen ? (
@@ -627,8 +624,6 @@ export const CanvasModulesView: React.FC<{
 }> = ({ courseId, heading, items, courseExternalId, canvasOrigin, onOpenAssignments, onOpenQuizzes }) => {
     const scrollAreaHostRef = React.useRef<HTMLDivElement | null>(null);
     const listScrollTopRef = React.useRef(0);
-    const [scrollTop, setScrollTop] = React.useState(0);
-    const [viewportHeight, setViewportHeight] = React.useState(MODULE_DEFAULT_VIEWPORT_HEIGHT);
     const [selectedModuleItem, setSelectedModuleItem] = React.useState<{ moduleId: string; item: LmsModuleItem } | null>(null);
     const [openModuleMap, setOpenModuleMap] = React.useState<Record<string, boolean>>(() => (
         Object.fromEntries(items.map((moduleItem) => [moduleItem.module_id, true]))
@@ -661,38 +656,6 @@ export const CanvasModulesView: React.FC<{
         });
     }, [items]);
 
-    React.useEffect(() => {
-        const host = scrollAreaHostRef.current;
-        const viewport = getScrollAreaViewport(host);
-        if (!viewport) {
-            return;
-        }
-
-        let frameId: number | null = null;
-        const syncViewport = () => {
-            if (frameId !== null) {
-                window.cancelAnimationFrame(frameId);
-            }
-            frameId = window.requestAnimationFrame(() => {
-                frameId = null;
-                setScrollTop(viewport.scrollTop);
-                setViewportHeight(viewport.clientHeight || MODULE_DEFAULT_VIEWPORT_HEIGHT);
-            });
-        };
-
-        syncViewport();
-        viewport.addEventListener('scroll', syncViewport, { passive: true });
-        window.addEventListener('resize', syncViewport);
-
-        return () => {
-            if (frameId !== null) {
-                window.cancelAnimationFrame(frameId);
-            }
-            viewport.removeEventListener('scroll', syncViewport);
-            window.removeEventListener('resize', syncViewport);
-        };
-    }, []);
-
     const restoreListScrollPosition = React.useCallback(() => {
         if (typeof window === 'undefined') {
             return;
@@ -703,7 +666,6 @@ export const CanvasModulesView: React.FC<{
                 return;
             }
             viewport.scrollTop = listScrollTopRef.current;
-            setScrollTop(listScrollTopRef.current);
         });
     }, []);
 
@@ -717,78 +679,8 @@ export const CanvasModulesView: React.FC<{
                 return;
             }
             viewport.scrollTop = 0;
-            setScrollTop(0);
         });
     }, [selectedModuleItem]);
-
-    const moduleHeights = React.useMemo(
-        () => items.map((moduleItem) => getEstimatedModuleHeight(moduleItem, openModuleMap[moduleItem.module_id] ?? true)),
-        [items, openModuleMap],
-    );
-
-    const totalHeight = React.useMemo(() => {
-        if (moduleHeights.length === 0) return 0;
-        let sum = 0;
-        for (let index = 0; index < moduleHeights.length; index += 1) {
-            sum += moduleHeights[index];
-            if (index < moduleHeights.length - 1) {
-                sum += MODULE_SECTION_GAP;
-            }
-        }
-        return sum;
-    }, [moduleHeights]);
-
-    const windowedModules = React.useMemo(() => {
-        const overscanStart = Math.max(0, scrollTop - MODULE_WINDOW_OVERSCAN);
-        const overscanEnd = scrollTop + viewportHeight + MODULE_WINDOW_OVERSCAN;
-
-        let cursor = 0;
-        let visibleStartIndex = 0;
-        let visibleEndIndex = items.length;
-        let foundStart = false;
-
-        for (let index = 0; index < items.length; index += 1) {
-            const moduleHeight = moduleHeights[index];
-            const moduleStart = cursor;
-            const moduleEnd = moduleStart + moduleHeight;
-
-            if (!foundStart && moduleEnd >= overscanStart) {
-                visibleStartIndex = index;
-                foundStart = true;
-            }
-
-            if (foundStart && moduleStart > overscanEnd) {
-                visibleEndIndex = index;
-                break;
-            }
-
-            cursor = moduleEnd + MODULE_SECTION_GAP;
-        }
-
-        if (!foundStart) {
-            visibleStartIndex = 0;
-            visibleEndIndex = Math.min(items.length, 8);
-        }
-
-        let topSpacer = 0;
-        for (let index = 0; index < visibleStartIndex; index += 1) {
-            topSpacer += moduleHeights[index] + MODULE_SECTION_GAP;
-        }
-
-        let renderedHeight = 0;
-        for (let index = visibleStartIndex; index < visibleEndIndex; index += 1) {
-            renderedHeight += moduleHeights[index];
-            if (index < visibleEndIndex - 1) {
-                renderedHeight += MODULE_SECTION_GAP;
-            }
-        }
-
-        return {
-            topSpacer,
-            bottomSpacer: Math.max(0, totalHeight - topSpacer - renderedHeight),
-            visibleItems: items.slice(visibleStartIndex, visibleEndIndex),
-        };
-    }, [items, moduleHeights, totalHeight, scrollTop, viewportHeight]);
 
     if (items.length === 0) {
         return (
@@ -824,29 +716,25 @@ export const CanvasModulesView: React.FC<{
                         }}
                     />
                 ) : (
-                    <div className="px-5 py-5">
-                        {windowedModules.topSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.topSpacer}px` }} /> : null}
-                        <div className="space-y-4">
-                            {windowedModules.visibleItems.map((moduleItem) => (
-                                <CanvasModuleSection
-                                    key={moduleItem.module_id}
-                                    moduleItem={moduleItem}
-                                    isOpen={openModuleMap[moduleItem.module_id] ?? true}
-                                    onOpenChange={(nextOpen) => {
-                                        setOpenModuleMap((currentMap) => ({
-                                            ...currentMap,
-                                            [moduleItem.module_id]: nextOpen,
-                                        }));
-                                    }}
-                                    onSelectItem={(selectedModuleId, item) => {
-                                        listScrollTopRef.current = getScrollAreaViewport(scrollAreaHostRef.current)?.scrollTop ?? 0;
-                                        setSelectedModuleItem({ moduleId: selectedModuleId, item });
-                                    }}
-                                    canvasOrigin={canvasOrigin}
-                                />
-                            ))}
-                        </div>
-                        {windowedModules.bottomSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.bottomSpacer}px` }} /> : null}
+                    <div className="space-y-4 px-5 py-5">
+                        {items.map((moduleItem) => (
+                            <CanvasModuleSection
+                                key={moduleItem.module_id}
+                                moduleItem={moduleItem}
+                                isOpen={openModuleMap[moduleItem.module_id] ?? true}
+                                onOpenChange={(nextOpen) => {
+                                    setOpenModuleMap((currentMap) => ({
+                                        ...currentMap,
+                                        [moduleItem.module_id]: nextOpen,
+                                    }));
+                                }}
+                                onSelectItem={(selectedModuleId, item) => {
+                                    listScrollTopRef.current = getScrollAreaViewport(scrollAreaHostRef.current)?.scrollTop ?? 0;
+                                    setSelectedModuleItem({ moduleId: selectedModuleId, item });
+                                }}
+                                canvasOrigin={canvasOrigin}
+                            />
+                        ))}
                     </div>
                 )}
             </ScrollArea>

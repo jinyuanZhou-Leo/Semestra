@@ -29,9 +29,9 @@ export const CanvasRailButton: React.FC<{
             type="button"
             aria-current={selected ? 'page' : undefined}
             className={cn(
-                'flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm transition-colors',
+                'flex h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm transition-colors',
                 selected
-                    ? 'bg-primary/10 text-primary'
+                    ? 'bg-primary/10 font-semibold text-primary'
                     : 'text-foreground/75 hover:bg-muted/70 hover:text-foreground',
             )}
             onClick={() => onSelectEntry(entry.id)}
