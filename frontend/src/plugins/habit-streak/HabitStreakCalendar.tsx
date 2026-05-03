@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Flame } from 'lucide-react';
+import { Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MilestoneBurstLayer, useStreakBursts } from './visuals';
 
@@ -47,10 +47,7 @@ export const HabitStreakCalendar: React.FC<HabitStreakCalendarProps> = ({
             </AnimatePresence>
 
             <div className="w-full">
-                <div className="mb-2.5 flex items-center justify-between gap-3 whitespace-nowrap px-1">
-                    <span className="text-xs font-medium text-stone-500 dark:text-white/50">
-                        Week
-                    </span>
+                <div className="mb-2.5 flex items-center justify-end whitespace-nowrap px-1">
                     <motion.div
                         key={reactionSignal === 0 ? `idle-${streakCount}` : `react-${reactionSignal}-${streakCount}`}
                         className="flex items-center gap-1.5 text-[0.72rem] font-semibold text-stone-600 dark:text-white/68"
@@ -64,7 +61,7 @@ export const HabitStreakCalendar: React.FC<HabitStreakCalendarProps> = ({
                                 : { rotate: [0, -10, 12, 0], scale: [1, 1.18, 1] }}
                             transition={{ duration: 0.55, ease: 'easeOut' }}
                         >
-                            <Flame className="h-3.5 w-3.5 text-[#ef7b2d]" />
+                            <Flame aria-hidden="true" className="h-3.5 w-3.5" style={{ color: 'var(--habit-accent-fire)' }} />
                         </motion.div>
                         <motion.span
                             className="font-black text-stone-900 dark:text-white"
@@ -78,21 +75,25 @@ export const HabitStreakCalendar: React.FC<HabitStreakCalendarProps> = ({
                     </motion.div>
                 </div>
 
-                <div className="grid w-full grid-cols-7 gap-1 sm:gap-1.5 md:gap-2" data-testid="habit-calendar-board">
+                <div className="grid w-full grid-cols-7 gap-1 @[200px]:gap-1.5 @[300px]:gap-2" role="list" data-testid="habit-calendar-board">
                     {recentDayCells.map((day) => (
                         <motion.div
                             key={day.key}
+                            role="listitem"
+                            aria-label={`${new Date(`${day.key}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}${day.isToday ? ', today' : ''}. ${day.isCompleted ? 'Checked in.' : 'Not checked in.'}`}
                             data-testid={`habit-day-${day.key}`}
                             data-completed={day.isCompleted ? 'true' : 'false'}
                             data-today={day.isToday ? 'true' : 'false'}
                             data-feedback-target={day.isToday ? 'true' : 'false'}
                             className={cn(
-                                'relative flex min-h-[72px] sm:min-h-[84px] flex-col items-center justify-between overflow-hidden rounded-2xl px-1 py-2 sm:py-2.5 text-center ring-1 transition-transform duration-300',
+                                'relative flex min-h-[72px] @[200px]:min-h-[84px] flex-col items-center justify-center gap-1 overflow-hidden rounded-xl px-1 py-2 @[200px]:py-2.5 text-center transition-transform duration-300',
                                 day.isCompleted
-                                    ? 'bg-[linear-gradient(180deg,#ffbb52_0%,#ff8c40_50%,#e45433_100%)] text-white ring-transparent shadow-[0_10px_20px_rgba(232,73,45,0.2)]'
-                                    : 'bg-white/84 text-stone-600 ring-black/6 dark:bg-white/6 dark:text-white/72 dark:ring-white/10',
-                                day.isToday && 'scale-[1.02] ring-2 ring-[#ff8f2c] dark:ring-[#ffb14b]',
+                                    ? 'text-white'
+                                    : 'bg-black/[0.04] text-stone-500 dark:bg-white/[0.05] dark:text-white/50',
+                                day.isToday && 'scale-[1.02]',
+                                day.isToday && !day.isCompleted && 'ring-1 ring-orange-400/40 dark:ring-orange-300/25',
                             )}
+                            style={day.isCompleted ? { background: 'linear-gradient(165deg, var(--habit-accent-warm), var(--habit-accent-hot))' } : undefined}
                             initial={false}
                             animate={prefersReducedMotion || !day.isToday || reactionSignal === 0
                                 ? { scale: day.isToday ? 1.02 : 1, y: 0 }
@@ -111,7 +112,7 @@ export const HabitStreakCalendar: React.FC<HabitStreakCalendarProps> = ({
                                         transition={{ duration: 0.3, ease: 'easeOut' }}
                                     >
                                         <motion.div
-                                            className="absolute inset-[2px] rounded-[15px] ring-2 ring-[#ffd28d]/90"
+                                            className="absolute inset-[2px] rounded-[10px] ring-2 ring-[#ffd28d]/90"
                                             initial={{ opacity: 0, scale: 0.86 }}
                                             animate={{ opacity: [0, 1, 0], scale: [0.86, 1.06, 1.14] }}
                                             transition={{ duration: 0.62, ease: 'easeOut' }}
@@ -126,7 +127,10 @@ export const HabitStreakCalendar: React.FC<HabitStreakCalendarProps> = ({
                                 </AnimatePresence>
                             ) : null}
 
-                            <span className={cn('relative z-10 text-[0.65rem] font-medium', day.isCompleted ? 'text-white/90' : 'text-stone-500 dark:text-white/60')}>
+                            <span className={cn(
+                                'relative z-10 text-[0.6rem] font-semibold tracking-widest',
+                                day.isCompleted ? 'text-white/60' : 'text-stone-400 dark:text-white/30'
+                            )}>
                                 {day.dayLabel}
                             </span>
                             <span className="relative z-10 text-[1.08rem] font-black leading-none tracking-tight">
@@ -134,18 +138,14 @@ export const HabitStreakCalendar: React.FC<HabitStreakCalendarProps> = ({
                             </span>
                             <motion.span
                                 className={cn(
-                                    'relative z-10 flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
-                                    day.isCompleted
-                                        ? 'bg-white/22 text-white'
-                                        : 'bg-stone-200 text-stone-400 dark:bg-white/10 dark:text-white/36',
+                                    'relative z-10 h-[3px] w-3 rounded-full',
+                                    day.isCompleted ? 'bg-white/40' : 'bg-transparent',
                                 )}
                                 animate={prefersReducedMotion || !day.isToday || reactionSignal === 0
-                                    ? { scale: 1 }
-                                    : { scale: [1, 1.2, 1] }}
+                                    ? { scaleX: 1 }
+                                    : { scaleX: [1, 1.4, 1] }}
                                 transition={{ duration: 0.38, ease: 'easeOut' }}
-                            >
-                                {day.isCompleted ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
-                            </motion.span>
+                            />
                         </motion.div>
                     ))}
                 </div>

@@ -129,11 +129,13 @@ export const CATEGORY_COLOR_OPTIONS = [
     { value: 'rose', label: 'Rose', badgeClassName: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/40 dark:text-rose-100 dark:border-rose-800/60', swatchClassName: 'bg-rose-500' },
     { value: 'slate', label: 'Slate', badgeClassName: 'bg-slate-200/80 text-slate-800 border-slate-300 dark:bg-slate-800/80 dark:text-slate-100 dark:border-slate-700', swatchClassName: 'bg-slate-500' },
     { value: 'cyan', label: 'Cyan', badgeClassName: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/40 dark:text-cyan-100 dark:border-cyan-800/60', swatchClassName: 'bg-cyan-500' },
+    { value: 'orange', label: 'Orange', badgeClassName: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/40 dark:text-orange-100 dark:border-orange-800/60', swatchClassName: 'bg-orange-500' },
 ] as const;
 const DEFAULT_CATEGORY_COLOR_OPTION = CATEGORY_COLOR_OPTIONS.find((option) => option.value === 'slate') ?? CATEGORY_COLOR_OPTIONS[0];
 
 export const DEFAULT_GRADEBOOK_CATEGORY_TEMPLATES: GradebookDefaultCategoryTemplate[] = [
     { name: 'Quiz', color_token: 'blue' },
+    { name: 'Test', color_token: 'orange' },
     { name: 'Exam', color_token: 'amber' },
     { name: 'Assignment', color_token: 'emerald' },
     { name: 'Project', color_token: 'violet' },

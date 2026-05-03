@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import './habit-streak.css';
 import { CalendarDays, RotateCcw, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { jsonDeepEqual } from '../../plugin-system/utils';
@@ -321,14 +322,13 @@ const normalizeCheckInHistory = (history: unknown, nowMs: number): string[] => {
     return normalizedHistory.map((entry) => entry.key);
 };
 
-const normalizeSharedSettings = (settings: unknown): HabitStreakSharedSettings => {
+const normalizeSharedSettings = (settings: unknown, nowMs: number = Date.now()): HabitStreakSharedSettings => {
     if (!settings || typeof settings !== 'object') {
         return DEFAULT_SHARED_SETTINGS;
     }
 
     const source = settings as Partial<HabitStreakSharedSettings>;
     const parsedLastCheckInAt = typeof source.lastCheckInAt === 'string' ? Date.parse(source.lastCheckInAt) : NaN;
-    const nowMs = Date.now();
 
     return {
         habitName: typeof source.habitName === 'string' ? source.habitName : DEFAULT_SHARED_SETTINGS.habitName,
@@ -342,12 +342,12 @@ const normalizeSharedSettings = (settings: unknown): HabitStreakSharedSettings =
     };
 };
 
-export const normalizeHabitStreakDuolingoSettings = (settings: unknown): HabitStreakDuolingoSettings => {
-    return normalizeSharedSettings(settings);
+export const normalizeHabitStreakDuolingoSettings = (settings: unknown, nowMs: number = Date.now()): HabitStreakDuolingoSettings => {
+    return normalizeSharedSettings(settings, nowMs);
 };
 
-export const normalizeHabitStreakRingSettings = (settings: unknown): HabitStreakRingSettings => {
-    const sharedSettings = normalizeSharedSettings(settings);
+export const normalizeHabitStreakRingSettings = (settings: unknown, nowMs: number = Date.now()): HabitStreakRingSettings => {
+    const sharedSettings = normalizeSharedSettings(settings, nowMs);
     const source = settings && typeof settings === 'object'
         ? settings as Partial<HabitStreakRingSettings>
         : null;
@@ -393,14 +393,12 @@ export const getCheckInWindowState = (
         if (!lastCheckInAt) {
             return { canCheckIn: true, remainingMs: 0, windowsSinceLast: 0 };
         }
-
-        const lastCheckInMs = Date.parse(lastCheckInAt);
-        if (Number.isNaN(lastCheckInMs)) {
+        if (Number.isNaN(Date.parse(lastCheckInAt))) {
             return { canCheckIn: true, remainingMs: 0, windowsSinceLast: 0 };
         }
-
-        const dayDiff = Math.max(0, Math.round((getStartOfLocalDay(nowMs) - getStartOfLocalDay(lastCheckInMs)) / DAY_IN_MS));
-        return { canCheckIn: true, remainingMs: 0, windowsSinceLast: dayDiff };
+        // No interval = tally counter: every check-in advances the streak by 1.
+        // There is no "missed window" concept when no interval is required.
+        return { canCheckIn: true, remainingMs: 0, windowsSinceLast: 1 };
     }
 
     if (!lastCheckInAt) {
@@ -626,6 +624,30 @@ const HabitStreakRingSettingsComponent: React.FC<WidgetSettingsProps<HabitStreak
     );
 };
 
+const CountdownDisplay: React.FC<{ remainingMs: number; onExpire: () => void }> = ({
+    remainingMs: initialRemainingMs,
+    onExpire,
+}) => {
+    const [ms, setMs] = useState(initialRemainingMs);
+    const onExpireRef = useRef(onExpire);
+    onExpireRef.current = onExpire;
+
+    useEffect(() => {
+        setMs(initialRemainingMs);
+    }, [initialRemainingMs]);
+
+    useEffect(() => {
+        if (ms <= 0) {
+            onExpireRef.current();
+            return;
+        }
+        const timer = window.setTimeout(() => setMs((prev) => Math.max(0, prev - 1000)), 1000);
+        return () => clearTimeout(timer);
+    }, [ms]);
+
+    return <>{formatRemainingTime(ms)}</>;
+};
+
 interface MotivationalToast {
     id: number;
     message: string;
@@ -657,7 +679,7 @@ const useHabitInstanceSettings = (
 };
 
 interface HabitStreakWidgetComponentProps<TSettings extends HabitStreakSettings> extends WidgetProps<TSettings> {
-    normalizeSettings: (settings: unknown) => TSettings;
+    normalizeSettings: (settings: unknown, nowMs: number) => TSettings;
     variant: HabitStreakVariant;
 }
 
@@ -668,13 +690,13 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
     normalizeSettings,
     variant,
 }: HabitStreakWidgetComponentProps<TSettings>) => {
-    const normalizedSettings = normalizeSettings(settings);
+    const [nowMs, setNowMs] = useState(() => Date.now());
+    const normalizedSettings = normalizeSettings(settings, nowMs);
     const instanceSettings = useHabitInstanceSettings(widgetId, normalizedSettings);
     const habitSettings = useMemo(
         () => applySharedSettings(normalizedSettings, instanceSettings),
         [normalizedSettings, instanceSettings]
     );
-    const [nowMs, setNowMs] = useState(() => Date.now());
     const [flameReactionSignal, setFlameReactionSignal] = useState(0);
     const [motivationalToast, setMotivationalToast] = useState<MotivationalToast | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -686,11 +708,9 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
         [habitSettings.checkInIntervalHours, habitSettings.lastCheckInAt, nowMs]
     );
 
-    useEffect(() => {
-        if (checkInState.canCheckIn) return;
-        const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
-        return () => window.clearInterval(timer);
-    }, [checkInState.canCheckIn]);
+    const handleCountdownExpire = useCallback(() => {
+        setNowMs(Date.now());
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -745,15 +765,12 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
         }
     }, [canShowMotivationalToast, checkInState.canCheckIn, checkInState.windowsSinceLast, habitSettings, pushInstanceSettings]);
 
-    const buttonLabel = checkInState.canCheckIn
-        ? 'Check In'
-        : `Wait ${formatRemainingTime(checkInState.remainingMs)}`;
     const habitTitle = habitSettings.habitName.trim().length > 0
         ? habitSettings.habitName
         : 'Untitled habit';
     const checkInButtonAriaLabel = checkInState.canCheckIn
         ? `Check in ${habitTitle}`
-        : `Wait to check in ${habitTitle}. ${formatRemainingTime(checkInState.remainingMs)} remaining.`;
+        : `Check-in for ${habitTitle} is on cooldown.`;
     const targetProgress = Math.min(100, Math.round((habitSettings.streakCount / habitSettings.targetStreak) * 100));
     const recentDayCells = useMemo(
         () => buildRecentDayCells(habitSettings.checkInHistory, nowMs),
@@ -803,15 +820,17 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
                         onClick={handleCheckIn}
                         disabled={!checkInState.canCheckIn}
                         aria-label={checkInButtonAriaLabel}
-                        className="group/habit-checkin relative h-10 w-full overflow-hidden border-0 bg-gradient-to-r from-[#ff9f1c] via-[#ff6b35] to-[#e5383b] text-sm font-semibold text-white shadow-none transition-all duration-300 ease-out hover:brightness-110 active:scale-[0.985] enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-[#8e6f53] disabled:text-white/80 disabled:shadow-none disabled:opacity-75"
+                        className="group/habit-checkin relative h-11 w-full overflow-hidden border-0 bg-gradient-to-r from-[var(--habit-btn-start)] via-[var(--habit-btn-mid)] to-[var(--habit-btn-end)] text-sm font-semibold text-white shadow-none transition-all duration-300 ease-out hover:brightness-110 active:scale-[0.985] enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-[var(--habit-btn-disabled)] disabled:text-white/80 disabled:shadow-none disabled:opacity-75"
                     >
                         <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.22)_50%,transparent_75%)] opacity-0 transition-opacity duration-300 group-hover/habit-checkin:opacity-100" />
-                        <Sparkles className={cn(
+                        <Sparkles aria-hidden="true" className={cn(
                             'relative mr-1.5 h-4 w-4 shrink-0 transition-transform duration-300 ease-out',
                             checkInState.canCheckIn && 'group-hover/habit-checkin:rotate-12 group-hover/habit-checkin:scale-110'
                         )} />
                         <span className="relative truncate">
-                            {buttonLabel}
+                            {checkInState.canCheckIn
+                                ? 'Check In'
+                                : <>Wait <CountdownDisplay remainingMs={checkInState.remainingMs} onExpire={handleCountdownExpire} /></>}
                         </span>
                     </Button>
                 </div>
@@ -828,7 +847,7 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
                             transition={{ duration: 0.3, ease: 'easeOut' }}
                         >
                             <p
-                                className="max-w-[95%] rounded-full px-3 py-1.5 text-center text-[10.5px] font-semibold leading-snug shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                                className="max-w-[95%] rounded-full px-3 py-1.5 text-center text-xs font-semibold leading-snug shadow-sm ring-1 ring-black/5 dark:ring-white/10"
                                 role="status"
                                 aria-live="polite"
                                 style={{
@@ -843,29 +862,7 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
                 </AnimatePresence>
             </div>
 
-            <style>{`
-                .habit-streak-widget {
-                    --habit-ring-track: color-mix(in srgb, var(--color-foreground) 16%, var(--color-background) 84%);
-                    --habit-ring-center-number: color-mix(in srgb, var(--color-foreground) 96%, black 4%);
-                    --habit-ring-center-label: color-mix(in srgb, var(--color-foreground) 70%, var(--color-background) 30%);
-                    container-type: size;
-                    background:
-                        radial-gradient(120% 96% at 14% 10%, rgba(254, 243, 199, 0.4) 0%, rgba(254, 243, 199, 0) 52%),
-                        radial-gradient(104% 82% at 90% 88%, rgba(255, 228, 230, 0.4) 0%, rgba(255, 228, 230, 0) 60%),
-                        radial-gradient(70% 62% at 50% 56%, rgba(255, 237, 213, 0.3) 0%, rgba(255, 237, 213, 0) 68%),
-                        linear-gradient(138deg, #ffffff 0%, #fafafa 44%, #f5f5f4 100%);
-                }
-                .dark .habit-streak-widget {
-                    --habit-ring-track: color-mix(in srgb, var(--color-foreground) 24%, transparent);
-                    --habit-ring-center-number: color-mix(in srgb, white 92%, var(--color-foreground) 8%);
-                    --habit-ring-center-label: color-mix(in srgb, white 56%, transparent);
-                    background:
-                        radial-gradient(128% 100% at 14% 10%, rgba(255, 172, 80, 0.32) 0%, rgba(255, 172, 80, 0) 52%),
-                        radial-gradient(108% 86% at 88% 88%, rgba(255, 98, 64, 0.34) 0%, rgba(255, 98, 64, 0) 58%),
-                        radial-gradient(72% 62% at 52% 58%, rgba(247, 151, 43, 0.2) 0%, rgba(247, 151, 43, 0) 66%),
-                        linear-gradient(142deg, #2f1208 0%, #3e170b 46%, #4a1b10 100%);
-                }
-            `}</style>
+
         </div>
     );
 };

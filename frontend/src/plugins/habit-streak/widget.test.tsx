@@ -66,7 +66,7 @@ describe('HabitStreak helpers', () => {
         expect(state.windowsSinceLast).toBe(1);
     });
 
-    it('allows immediate repeated check-ins when interval is zero', () => {
+    it('increments streak on every check-in when interval is zero', () => {
         const now = Date.parse('2026-02-20T00:10:00.000Z');
         const lastCheckInAt = '2026-02-20T00:09:00.000Z';
 
@@ -74,7 +74,7 @@ describe('HabitStreak helpers', () => {
 
         expect(state.canCheckIn).toBe(true);
         expect(state.remainingMs).toBe(0);
-        expect(state.windowsSinceLast).toBe(0);
+        expect(state.windowsSinceLast).toBe(1);
     });
 
     it('treats the next local day as a new streak window when interval is zero', () => {
@@ -252,7 +252,7 @@ describe('HabitStreak widgets', () => {
 
         expect(updateSettings).toHaveBeenCalledWith(
             expect.objectContaining({
-                streakCount: 4,
+                streakCount: 5,
                 bestStreak: 8,
                 totalCheckIns: 12,
                 checkInHistory: ['2026-03-06'],
@@ -281,7 +281,7 @@ describe('HabitStreak widgets', () => {
             />
         );
 
-        const button = screen.getByRole('button', { name: /Wait to check in Flash cards/i });
+        const button = screen.getByRole('button', { name: /Check-in for Flash cards is on cooldown/i });
         expect(button).toBeDisabled();
     });
 
@@ -309,7 +309,7 @@ describe('HabitStreak widgets', () => {
 
         expect(screen.queryByText('Goal: 30 streaks')).not.toBeInTheDocument();
         expect(screen.queryByText('5/30 streak')).not.toBeInTheDocument();
-        expect(screen.getByText('Week')).toBeInTheDocument();
+        expect(screen.queryByText('Week')).not.toBeInTheDocument();
         expect(screen.getByTestId('habit-calendar-board')).toBeInTheDocument();
         expect(screen.getByText('5d')).toBeInTheDocument();
         expect(screen.getAllByTestId(/habit-day-/)).toHaveLength(7);

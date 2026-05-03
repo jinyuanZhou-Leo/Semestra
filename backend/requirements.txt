@@ -8,6 +8,7 @@
 
 fastapi
 uvicorn
+gunicorn
 sqlalchemy
 pydantic
 alembic

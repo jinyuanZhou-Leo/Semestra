@@ -31,7 +31,9 @@ export const HabitStreakRing: React.FC<HabitStreakRingProps> = ({
 
     return (
         <div className="relative flex aspect-square h-full max-h-[160px] min-h-[70px] items-center justify-center" data-testid="habit-display-ring">
+            <span className="sr-only">{streakCount} day streak. {targetProgress}% toward goal.</span>
             <motion.svg
+                aria-hidden="true"
                 className="absolute inset-0 h-full w-full transform"
                 viewBox="0 0 100 100"
                 initial={{ rotate: -90, scale: 1 }}
@@ -83,9 +85,9 @@ export const HabitStreakRing: React.FC<HabitStreakRingProps> = ({
                 </motion.g>
                 <defs>
                     <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#facc15" />
-                        <stop offset="50%" stopColor="#f97316" />
-                        <stop offset="100%" stopColor="#f43f5e" />
+                        <stop offset="0%" style={{ stopColor: 'var(--habit-ring-grad-1)' }} />
+                        <stop offset="50%" style={{ stopColor: 'var(--habit-ring-grad-2)' }} />
+                        <stop offset="100%" style={{ stopColor: 'var(--habit-ring-grad-3)' }} />
                     </linearGradient>
                 </defs>
             </motion.svg>
@@ -95,7 +97,7 @@ export const HabitStreakRing: React.FC<HabitStreakRingProps> = ({
                     <div key={burst.id} className="pointer-events-none absolute inset-0 mix-blend-screen">
                         <motion.div
                             className="absolute inset-0 rounded-full border-2"
-                            style={{ borderColor: burst.isOverachieve ? 'rgba(244, 63, 94, 0.4)' : 'rgba(249, 115, 22, 0.5)' }}
+                            style={{ borderColor: burst.isOverachieve ? 'color-mix(in srgb, var(--habit-ring-grad-3) 40%, transparent)' : 'color-mix(in srgb, var(--habit-ring-grad-2) 50%, transparent)' }}
                             initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.8, opacity: 1, borderWidth: '3px' }}
                             animate={prefersReducedMotion ? { opacity: 0 } : { scale: burst.isOverachieve ? 1.8 : 1.6, opacity: 0, borderWidth: '0px' }}
                             exit={{ opacity: 0 }}

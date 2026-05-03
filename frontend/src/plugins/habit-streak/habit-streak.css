@@ -1,0 +1,40 @@
+/* Scoped color tokens, backgrounds, and ring surface tokens for both habit-streak variants */
+
+.habit-streak-widget {
+    /* Flame accent palette */
+    --habit-accent-warm: #ffb347;
+    --habit-accent-hot: #e16a20;
+    --habit-accent-fire: #ef7b2d;
+    --habit-btn-start: #ff9f1c;
+    --habit-btn-mid: #ff6b35;
+    --habit-btn-end: #e5383b;
+    --habit-btn-disabled: #8e6f53;
+
+    /* Ring progress gradient */
+    --habit-ring-grad-1: #facc15;
+    --habit-ring-grad-2: #f97316;
+    --habit-ring-grad-3: #f43f5e;
+
+    /* Ring surface tokens */
+    --habit-ring-track: color-mix(in srgb, var(--color-foreground) 16%, var(--color-background) 84%);
+    --habit-ring-center-number: color-mix(in srgb, var(--color-foreground) 96%, black 4%);
+    --habit-ring-center-label: color-mix(in srgb, var(--color-foreground) 70%, var(--color-background) 30%);
+
+    container-type: size;
+    background:
+        radial-gradient(120% 96% at 14% 10%, rgba(254, 243, 199, 0.4) 0%, rgba(254, 243, 199, 0) 52%),
+        radial-gradient(104% 82% at 90% 88%, rgba(255, 228, 230, 0.4) 0%, rgba(255, 228, 230, 0) 60%),
+        radial-gradient(70% 62% at 50% 56%, rgba(255, 237, 213, 0.3) 0%, rgba(255, 237, 213, 0) 68%),
+        linear-gradient(138deg, #ffffff 0%, #fafafa 44%, #f5f5f4 100%);
+}
+
+.dark .habit-streak-widget {
+    --habit-ring-track: color-mix(in srgb, var(--color-foreground) 24%, transparent);
+    --habit-ring-center-number: color-mix(in srgb, white 92%, var(--color-foreground) 8%);
+    --habit-ring-center-label: color-mix(in srgb, white 56%, transparent);
+    background:
+        radial-gradient(128% 100% at 14% 10%, rgba(255, 172, 80, 0.32) 0%, rgba(255, 172, 80, 0) 52%),
+        radial-gradient(108% 86% at 88% 88%, rgba(255, 98, 64, 0.34) 0%, rgba(255, 98, 64, 0) 58%),
+        radial-gradient(72% 62% at 52% 58%, rgba(247, 151, 43, 0.2) 0%, rgba(247, 151, 43, 0) 66%),
+        linear-gradient(142deg, #2f1208 0%, #3e170b 46%, #4a1b10 100%);
+}
