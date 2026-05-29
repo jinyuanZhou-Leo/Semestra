@@ -11,7 +11,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
-import { ArrowRightLeft, CalendarDays, FlaskConical, GraduationCap, Pencil, Percent, Plus, Sparkles, Target, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Award, CalendarDays, FlaskConical, GraduationCap, Pencil, Percent, Plus, Sparkles, Target, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
@@ -52,6 +52,7 @@ import {
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
+import { Field, FieldError } from '@/components/ui/field';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -183,6 +184,10 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const [planModeIntroOpen, setPlanModeIntroOpen] = React.useState(false);
     const [planModeExitOpen, setPlanModeExitOpen] = React.useState(false);
     const [targetGpaDraft, setTargetGpaDraft] = React.useState('');
+    const [finalGradeConfirmOpen, setFinalGradeConfirmOpen] = React.useState(false);
+    const [finalGradeRemoveConfirmOpen, setFinalGradeRemoveConfirmOpen] = React.useState(false);
+    const [finalGradeDraft, setFinalGradeDraft] = React.useState('');
+    const [finalGradeError, setFinalGradeError] = React.useState<string | null>(null);
     const gradebookQuery = useCourseGradebookQuery(courseId);
     const gradebookMutation = useCourseGradebookMutation(courseId);
     const gradebook = gradebookQuery.data ?? null;
@@ -253,6 +258,7 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 formatGradebookDateInput(assessment.due_date),
             ]),
         ));
+        setFinalGradeDraft(gradebook.final_grade_percentage_override == null ? '' : String(gradebook.final_grade_percentage_override));
     }, [gradebook, targetInputMode, editingScoreAssessmentId]);
 
     React.useEffect(() => {
@@ -287,10 +293,10 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         try {
             const response = await gradebookMutation.mutateAsync(() => promise);
             const nextSummary = buildComputedGradebookSummary(response);
-            if (nextSummary.current_real_percentage !== null && nextSummary.current_real_gpa !== null) {
+            if (nextSummary.effective_percentage !== null && nextSummary.effective_gpa !== null) {
                 updateCourse({
-                    grade_percentage: nextSummary.current_real_percentage,
-                    grade_scaled: nextSummary.current_real_gpa,
+                    grade_percentage: nextSummary.effective_percentage,
+                    grade_scaled: nextSummary.effective_gpa,
                 });
             }
             return true;
@@ -312,6 +318,7 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         [gradebook],
     );
     const hasCompleteWeight = summary?.has_complete_weight ?? false;
+    const hasFinalGradeOverride = summary?.has_final_grade_override ?? false;
 
     const parsedWhatIfScores = React.useMemo(
         () => Object.fromEntries(
@@ -333,13 +340,17 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     }, [gradebook, parsedWhatIfScores, planMode, targetGpaDraft, targetInputMode]);
 
     const enterPlanMode = React.useCallback(() => {
+        if (hasFinalGradeOverride) {
+            toast.error('Remove the final grade override before using Plan Mode.');
+            return;
+        }
         if (!hasCompleteWeight) {
             toast.error('Weights must total 100%.');
             return;
         }
         updatePlanModeState({ planMode: true });
         setPlanModeIntroOpen(false);
-    }, [hasCompleteWeight, updatePlanModeState]);
+    }, [hasCompleteWeight, hasFinalGradeOverride, updatePlanModeState]);
 
     const exitPlanMode = React.useCallback(() => {
         updatePlanModeState({
@@ -489,6 +500,57 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         updatePlanModeState({ targetInputMode: nextInputMode });
         setTargetGpaDraft(formatTargetDraftValue(gradebook, nextInputMode, parsedTargetGpa));
     }, [gradebook, targetGpaDraft, targetInputMode, updatePlanModeState]);
+
+    const parseFinalGradeDraft = React.useCallback(() => {
+        const parsed = parseOptionalNumber(finalGradeDraft);
+        if (parsed === null || parsed < 0 || parsed > 100) {
+            setFinalGradeError('Enter a percentage between 0 and 100.');
+            return null;
+        }
+        return parsed;
+    }, [finalGradeDraft]);
+
+    const handleSetFinalGradeClick = React.useCallback(() => {
+        setFinalGradeDraft('');
+        setFinalGradeError(null);
+        setFinalGradeConfirmOpen(true);
+    }, []);
+
+    const handleSaveFinalGradeOverride = React.useCallback(async (nextValue?: number) => {
+        if (!courseId || !gradebook) return;
+        const parsed = nextValue ?? parseFinalGradeDraft();
+        if (parsed === null) return;
+        if (parsed === gradebook.final_grade_percentage_override) return;
+        const didSave = await commitGradebook(api.updateCourseGradebookPreferences(courseId, {
+            final_grade_percentage_override: parsed,
+        }));
+        if (!didSave) return;
+        setFinalGradeError(null);
+        setFinalGradeConfirmOpen(false);
+    }, [commitGradebook, courseId, gradebook, parseFinalGradeDraft]);
+
+    const handleSaveExistingFinalGradeOverride = React.useCallback(async () => {
+        if (!summary?.has_final_grade_override) return;
+        await handleSaveFinalGradeOverride();
+    }, [handleSaveFinalGradeOverride, summary?.has_final_grade_override]);
+
+    const handleClearFinalGradeOverride = React.useCallback(async () => {
+        if (!courseId || !gradebook) return;
+        const didSave = await commitGradebook(api.updateCourseGradebookPreferences(courseId, {
+            final_grade_percentage_override: null,
+        }));
+        if (!didSave) return;
+        if (summary?.current_real_percentage === null || summary?.current_real_gpa === null) {
+            updateCourse({
+                grade_percentage: 0,
+                grade_scaled: 0,
+            });
+        }
+        setFinalGradeDraft('');
+        setFinalGradeError(null);
+        setFinalGradeConfirmOpen(false);
+        setFinalGradeRemoveConfirmOpen(false);
+    }, [commitGradebook, courseId, gradebook, summary?.current_real_gpa, summary?.current_real_percentage, updateCourse]);
 
     const handleSaveScore = React.useCallback(async (assessment: GradebookAssessment) => {
         if (!courseId || planMode) return;
@@ -859,7 +921,7 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             />
         );
     }
-    const showWeightMismatchState = Boolean(course && summary && !summary.has_complete_weight);
+    const showWeightMismatchState = Boolean(course && summary && !summary.has_complete_weight && !summary.has_final_grade_override);
 
     return (
         <div className="space-y-4">
@@ -901,7 +963,7 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 ) : (
                                     <span className={planMode ? 'text-amber-600 dark:text-amber-400' : undefined}>
                                         <AnimatedNumber
-                                            value={planMode && whatIfResult ? whatIfResult.projected_percentage : course.grade_percentage}
+                                            value={planMode && whatIfResult ? whatIfResult.projected_percentage : summary.effective_percentage ?? course.grade_percentage}
                                             format={formatGradebookGpaPercentage}
                                         />
                                     </span>
@@ -944,7 +1006,7 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 ) : (
                                     <span className={planMode ? 'text-amber-600 dark:text-amber-400' : undefined}>
                                         <AnimatedNumber
-                                            value={planMode && whatIfResult ? whatIfResult.projected_gpa : course.grade_scaled}
+                                            value={planMode && whatIfResult ? whatIfResult.projected_gpa : summary.effective_gpa ?? course.grade_scaled}
                                             format={(v) => v.toFixed(2)}
                                             rainbowThreshold={planMode ? undefined : 3.8}
                                         />
@@ -961,6 +1023,73 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 </section>
             ) : null}
 
+            <section className="flex flex-col gap-3 rounded-lg border px-3.5 py-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <Award className="size-4" aria-hidden="true" />
+                    </div>
+                    <div className="flex min-h-10 min-w-0 flex-col justify-center">
+                        <h2 className="text-sm font-medium tracking-tight">Final grade</h2>
+                        <p className="text-sm text-muted-foreground">
+                            Enter the final total when the course publishes one.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-start lg:w-auto">
+                    {summary.has_final_grade_override ? (
+                        <>
+                            <Field data-invalid={finalGradeError ? true : undefined} className="min-w-0 flex-1 sm:w-44 sm:flex-none">
+                                <InputGroup>
+                                    <InputGroupInput
+                                        id="gradebook-final-grade"
+                                        value={finalGradeDraft}
+                                        inputMode="decimal"
+                                        aria-label="Final grade"
+                                        aria-invalid={Boolean(finalGradeError)}
+                                        className="tabular-nums"
+                                        onChange={(event) => {
+                                            setFinalGradeDraft(event.target.value);
+                                            setFinalGradeError(null);
+                                        }}
+                                        onBlur={() => void handleSaveExistingFinalGradeOverride()}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter') {
+                                                event.preventDefault();
+                                                void handleSaveExistingFinalGradeOverride();
+                                            }
+                                        }}
+                                    />
+                                    <InputGroupAddon align="inline-end">
+                                        <InputGroupText>%</InputGroupText>
+                                    </InputGroupAddon>
+                                </InputGroup>
+                                <FieldError>{finalGradeError}</FieldError>
+                            </Field>
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                className="w-full shrink-0 sm:w-auto"
+                                disabled={isMutating}
+                                onClick={() => setFinalGradeRemoveConfirmOpen(true)}
+                            >
+                                Remove
+                            </Button>
+                        </>
+                    ) : (
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            className="w-full shrink-0 sm:w-auto"
+                            onClick={handleSetFinalGradeClick}
+                            disabled={isMutating}
+                        >
+                            <Award data-icon="inline-start" />
+                            Set Final Grade
+                        </Button>
+                    )}
+                </div>
+            </section>
+
             <section className="space-y-3">
                 <h2 className="text-lg font-semibold tracking-tight">Assessments</h2>
 
@@ -975,7 +1104,7 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 id="gradebook-plan-mode"
                                 checked={planMode}
                                 onCheckedChange={handlePlanModeCheckedChange}
-                                disabled={isMutating}
+                                disabled={isMutating || hasFinalGradeOverride}
                                 className="data-checked:bg-amber-500 data-unchecked:bg-slate-300/80 dark:data-unchecked:bg-slate-700"
                                 aria-label="Toggle Plan Mode"
                             />
@@ -1127,6 +1256,74 @@ const CourseGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                     onSave={handleSaveAssessment}
                 />
             ) : null}
+
+            <AlertDialog open={finalGradeConfirmOpen} onOpenChange={setFinalGradeConfirmOpen}>
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Use this as the final grade?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Final grade overrides the calculated assessment total for this course.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <Field data-invalid={finalGradeError ? true : undefined}>
+                        <InputGroup>
+                            <InputGroupInput
+                                value={finalGradeDraft}
+                                inputMode="decimal"
+                                aria-label="Final grade"
+                                aria-invalid={Boolean(finalGradeError)}
+                                className="tabular-nums"
+                                onChange={(event) => {
+                                    setFinalGradeDraft(event.target.value);
+                                    setFinalGradeError(null);
+                                }}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        void handleSaveFinalGradeOverride();
+                                    }
+                                }}
+                            />
+                            <InputGroupAddon align="inline-end">
+                                <InputGroupText>%</InputGroupText>
+                            </InputGroupAddon>
+                        </InputGroup>
+                        <FieldError>{finalGradeError}</FieldError>
+                    </Field>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <Button
+                            type="button"
+                            onClick={() => void handleSaveFinalGradeOverride()}
+                            disabled={isMutating}
+                        >
+                            Set Final Grade
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={finalGradeRemoveConfirmOpen} onOpenChange={setFinalGradeRemoveConfirmOpen}>
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Remove final grade?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            The course grade will return to the calculated assessment total when available.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={() => void handleClearFinalGradeOverride()}
+                            disabled={isMutating}
+                        >
+                            Remove
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <AlertDialog open={pendingDeleteAssessment !== null} onOpenChange={(open) => !open && setPendingDeleteAssessment(null)}>
                 <AlertDialogContent size="sm">

@@ -1,6 +1,6 @@
 // input:  [gradebook API contracts, date-fns helpers, builtin-gradebook table view preferences, and shared badge-color utilities]
-// output: [builtin-gradebook plugin constants, exact-weight-gated forecast/plan calculators, shared formatters, stable GPA-threshold resolution helpers, exact-percentage planning helpers, and category badge color helpers]
-// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, settings surface, and Canvas handoff target resolution, including exact-100 total-weight calculation gating, band-aware numeric-or-range GPA scale parsing, continuous matching for adjacent integer-authored ranges, and exact percentage plan targets]
+// output: [builtin-gradebook plugin constants, exact-weight-gated forecast/plan calculators, final-grade override summary helpers, shared formatters, stable GPA-threshold resolution helpers, exact-percentage planning helpers, and category badge color helpers]
+// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, settings surface, and Canvas handoff target resolution, including exact-100 total-weight calculation gating, final-grade override priority, band-aware numeric-or-range GPA scale parsing, continuous matching for adjacent integer-authored ranges, and exact percentage plan targets]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -70,6 +70,10 @@ export interface ComputedGradebookUpcomingDueItem {
 export interface ComputedGradebookSummary {
     current_real_percentage: number | null;
     current_real_gpa: number | null;
+    effective_percentage: number | null;
+    effective_gpa: number | null;
+    final_grade_percentage_override: number | null;
+    has_final_grade_override: boolean;
     forecast_percentage: number | null;
     forecast_gpa: number | null;
     minimum_required_average: number | null;
@@ -341,6 +345,11 @@ export const buildComputedGradebookSummary = (gradebook: CourseGradebook): Compu
     const currentRealGpa = currentRealPercentage === null
         ? null
         : calculateGradebookGpa(currentRealPercentage, gradebook.scaling_table);
+    const finalGradeOverride = gradebook.final_grade_percentage_override ?? null;
+    const effectivePercentage = finalGradeOverride ?? currentRealPercentage;
+    const effectiveGpa = effectivePercentage === null
+        ? null
+        : calculateGradebookGpa(effectivePercentage, gradebook.scaling_table);
     const categoryStats = buildCategoryStats(gradebook);
     const categoryMap = new Map(categoryStats.map((stats) => [stats.categoryId, stats]));
     const pendingAssessments = getPendingAssessments(gradebook);
@@ -365,6 +374,10 @@ export const buildComputedGradebookSummary = (gradebook: CourseGradebook): Compu
     return {
         current_real_percentage: currentRealPercentage,
         current_real_gpa: currentRealGpa,
+        effective_percentage: effectivePercentage,
+        effective_gpa: effectiveGpa,
+        final_grade_percentage_override: finalGradeOverride,
+        has_final_grade_override: finalGradeOverride !== null,
         forecast_percentage: forecastPercentage,
         forecast_gpa: forecastPercentage === null ? null : calculateGradebookGpa(forecastPercentage, gradebook.scaling_table),
         minimum_required_average: hasCompleteWeight

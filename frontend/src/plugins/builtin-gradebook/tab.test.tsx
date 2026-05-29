@@ -1,6 +1,6 @@
 // input:  [Vitest + Testing Library, builtin-gradebook tab runtime, plugin runtime scope, mocked course and gradebook hooks, and dialog-backed plan-mode UI]
-// output: [regression tests validating persisted gradebook plan-mode, What If UI-state, assessment sort restoration, target input-mode switching, and exact-percentage auto-fill]
-// pos:    [plugin-level regression tests for builtin-gradebook tab-local UI-state persistence, toolbar target-format behavior, and exact percentage plan-target handling]
+// output: [regression tests validating persisted gradebook plan-mode, What If UI-state, final grade override entry, assessment sort restoration, target input-mode switching, and exact-percentage auto-fill]
+// pos:    [plugin-level regression tests for builtin-gradebook tab-local UI-state persistence, final grade override entry, toolbar target-format behavior, and exact percentage plan-target handling]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -80,6 +80,7 @@ const gradebook: CourseGradebook = {
     course_id: 'course-1',
     target_gpa: 3.7,
     forecast_model: 'auto',
+    final_grade_percentage_override: null,
     scaling_table: {
         '90': 4.0,
         '85': 3.9,
@@ -411,6 +412,63 @@ describe('BuiltinGradebookTab', () => {
             expect(screen.getAllByDisplayValue('92')).toHaveLength(2);
         });
         expect(api.updateCourseGradebookPreferences).toHaveBeenCalledWith('course-1', { target_gpa: 3.9 });
+    });
+
+    it('saves a final grade override from the course gradebook tab', async () => {
+        const overrideGradebook = buildGradebook({
+            final_grade_percentage_override: 92.5,
+        });
+        vi.mocked(courseGradebookQuery.useCourseGradebookMutation).mockReturnValue({
+            mutateAsync: vi.fn(async (mutator: () => Promise<CourseGradebook>) => mutator()),
+        } as unknown as ReturnType<typeof courseGradebookQuery.useCourseGradebookMutation>);
+        vi.spyOn(api, 'updateCourseGradebookPreferences').mockResolvedValue(overrideGradebook);
+
+        renderGradebookTab();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Set Final Grade' }));
+        expect(await screen.findByText('Use this as the final grade?')).toBeInTheDocument();
+        fireEvent.change(await screen.findByLabelText('Final grade'), { target: { value: '92.5' } });
+        const setFinalGradeButtons = await screen.findAllByRole('button', { name: 'Set Final Grade' });
+        fireEvent.click(setFinalGradeButtons[setFinalGradeButtons.length - 1]!);
+
+        await waitFor(() => {
+            expect(api.updateCourseGradebookPreferences).toHaveBeenCalledWith('course-1', {
+                final_grade_percentage_override: 92.5,
+            });
+        });
+    });
+
+    it('confirms before removing a final grade override', async () => {
+        const overrideGradebook = buildGradebook({
+            final_grade_percentage_override: 92.5,
+        });
+        const clearedGradebook = buildGradebook({
+            final_grade_percentage_override: null,
+        });
+        vi.mocked(courseGradebookQuery.useCourseGradebookQuery).mockReturnValue({
+            data: overrideGradebook,
+            isLoading: false,
+            error: null,
+            refetch: vi.fn(),
+        } as unknown as ReturnType<typeof courseGradebookQuery.useCourseGradebookQuery>);
+        vi.mocked(courseGradebookQuery.useCourseGradebookMutation).mockReturnValue({
+            mutateAsync: vi.fn(async (mutator: () => Promise<CourseGradebook>) => mutator()),
+        } as unknown as ReturnType<typeof courseGradebookQuery.useCourseGradebookMutation>);
+        vi.spyOn(api, 'updateCourseGradebookPreferences').mockResolvedValue(clearedGradebook);
+
+        renderGradebookTab();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+        expect(await screen.findByText('Remove final grade?')).toBeInTheDocument();
+        expect(api.updateCourseGradebookPreferences).not.toHaveBeenCalled();
+        const removeButtons = await screen.findAllByRole('button', { name: 'Remove' });
+        fireEvent.click(removeButtons[removeButtons.length - 1]!);
+
+        await waitFor(() => {
+            expect(api.updateCourseGradebookPreferences).toHaveBeenCalledWith('course-1', {
+                final_grade_percentage_override: null,
+            });
+        });
     });
 
     it('renders semester course rows and credit-weighted GPA from semester data', async () => {

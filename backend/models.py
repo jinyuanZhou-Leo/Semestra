@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints, and dialect-specific partial-index expressions]
-# output: [ORM model classes and table definitions, including Program subject-color persistence, Program-level plugin management rows with install enablement, Semester draft lifecycle state plus review readiness plus a single-draft-per-Program partial unique index, Semester-level plugin activations with soft-disable support, unassigned-Course plugin activation rows with per-course enablement, multi-integration LMS records, auth session-version plus login-rate-limit controls, email-verification challenge storage, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, V2 tab-settings records, V2 workspace-tab-order entries, and semester-scoped todo domain tables]
-# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level settings and plugin governance, Semester draft or activation state plus database-enforced draft uniqueness and review readiness, unassigned-Course plugin activation state, auth security state plus email-verification challenge state, LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, V2 tab-settings ownership, workspace-tab ordering buckets, and todo domain records]
+# output: [ORM model classes and table definitions, including Program subject-color persistence, Program-level plugin management rows with install enablement, Semester draft lifecycle state plus review readiness plus a single-draft-per-Program partial unique index, Semester-level plugin activations with soft-disable support, unassigned-Course plugin activation rows with per-course enablement, multi-integration LMS records, auth session-version plus login-rate-limit controls, email-verification challenge storage, Program/Course LMS link metadata, gradebook LMS-import provenance plus optional point-based score fields and final grade overrides, V2 tab-settings records, V2 workspace-tab-order entries, and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level settings and plugin governance, Semester draft or activation state plus database-enforced draft uniqueness and review readiness, unassigned-Course plugin activation state, auth security state plus email-verification challenge state, LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts and final grade overrides, V2 tab-settings ownership, workspace-tab ordering buckets, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -367,6 +367,7 @@ class CourseGradebook(Base):
     course_id = Column(String, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
     target_gpa = Column(Float, nullable=False, default=4.0)
     forecast_model = Column(String, nullable=False, default="auto")
+    final_grade_percentage_override = Column(Float, nullable=True)
     revision = Column(Integer, nullable=False, default=1)
     created_at = Column(String, nullable=False, default="")
     updated_at = Column(String, nullable=False, default="")

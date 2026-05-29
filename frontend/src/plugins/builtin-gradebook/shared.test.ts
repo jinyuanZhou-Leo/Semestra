@@ -26,6 +26,7 @@ const fixture: CourseGradebook = {
     course_id: 'course-1',
     target_gpa: 4,
     forecast_model: 'auto',
+    final_grade_percentage_override: null,
     scaling_table: {
         '90-100': 4.0,
         '80-89': 3.7,
@@ -121,6 +122,18 @@ describe('builtin-gradebook shared helpers', () => {
 
         expect(summary.forecast_percentage).toBeNull();
         expect(summary.missing_history_categories).toContain('Exam');
+    });
+
+    it('uses final grade overrides as the effective course grade', () => {
+        const summary = buildComputedGradebookSummary({
+            ...fixture,
+            final_grade_percentage_override: 91.5,
+        });
+
+        expect(summary.current_real_percentage).toBe(20.5);
+        expect(summary.effective_percentage).toBe(91.5);
+        expect(summary.effective_gpa).toBe(4);
+        expect(summary.has_final_grade_override).toBe(true);
     });
 
     it('disables grade calculations when total weight is below 100%', () => {

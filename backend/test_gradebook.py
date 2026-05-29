@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy session setup, gradebook domain service, and backend schemas/models]
-# output: [unit tests covering gradebook initialization, category reassignment, preference updates, percentage and point-based score persistence, score-first assessment behavior, and GPA range continuity]
-# pos:    [backend regression tests for the simplified built-in gradebook service and import-safe payload helpers, including points-to-percentage assessment input and continuous integer-band GPA matching]
+# output: [unit tests covering gradebook initialization, category reassignment, preference updates, final grade overrides, percentage and point-based score persistence, score-first assessment behavior, and GPA range continuity]
+# pos:    [backend regression tests for the simplified built-in gradebook service and import-safe payload helpers, including points-to-percentage assessment input, final grade override persistence, and continuous integer-band GPA matching]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -245,6 +245,58 @@ class GradebookServiceTests(unittest.TestCase):
 
         self.assertEqual(updated.target_gpa, 3.7)
         self.assertEqual(updated.forecast_model, schemas.GradebookForecastModel.SIMPLE_MINIMUM_NEEDED)
+
+    def test_final_grade_override_updates_course_grade_fact(self) -> None:
+        updated = gradebook.update_preferences(
+            self.db,
+            self.course_id,
+            schemas.GradebookPreferencesUpdate(final_grade_percentage_override=91.5),
+        )
+
+        course = self.db.query(models.Course).filter(models.Course.id == self.course_id).one()
+        self.assertEqual(updated.final_grade_percentage_override, 91.5)
+        self.assertEqual(course.grade_percentage, 91.5)
+        self.assertEqual(course.grade_scaled, logic.calculate_gpa(91.5, logic.get_scaling_table(course.program)))
+
+    def test_clearing_final_grade_override_restores_calculated_grade(self) -> None:
+        payload = self._payload()
+        category_id = payload.categories[0].id
+        gradebook.create_assessment(
+            self.db,
+            self.course_id,
+            schemas.GradebookAssessmentCreate(
+                category_id=category_id,
+                title="Midterm",
+                weight=40.0,
+                score=80.0,
+            ),
+        )
+        gradebook.create_assessment(
+            self.db,
+            self.course_id,
+            schemas.GradebookAssessmentCreate(
+                category_id=category_id,
+                title="Final",
+                weight=60.0,
+                score=90.0,
+            ),
+        )
+        gradebook.update_preferences(
+            self.db,
+            self.course_id,
+            schemas.GradebookPreferencesUpdate(final_grade_percentage_override=95.0),
+        )
+
+        updated = gradebook.update_preferences(
+            self.db,
+            self.course_id,
+            schemas.GradebookPreferencesUpdate(final_grade_percentage_override=None),
+        )
+
+        course = self.db.query(models.Course).filter(models.Course.id == self.course_id).one()
+        self.assertIsNone(updated.final_grade_percentage_override)
+        self.assertEqual(course.grade_percentage, 86.0)
+        self.assertEqual(course.grade_scaled, logic.calculate_gpa(86.0, logic.get_scaling_table(course.program)))
 
     def test_semester_gradebook_aggregates_due_date_assessments_with_range_filter(self) -> None:
         payload = self._payload()

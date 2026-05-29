@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, simplified gradebook ORM models, GPA logic helpers, and gradebook API schemas]
-# output: [course-gradebook domain service for initialization, preference/category/assessment CRUD, and import/export mapping that preserves LMS assessment provenance plus optional point-based score inputs in backups]
-# pos:    [backend gradebook domain layer that persists assessment score facts, optional points-based grading inputs, and import provenance while leaving forecast and plan calculations to the client]
+# output: [course-gradebook domain service for initialization, preference/category/assessment CRUD, final grade overrides, and import/export mapping that preserves LMS assessment provenance plus optional point-based score inputs in backups]
+# pos:    [backend gradebook domain layer that persists assessment score facts, optional points-based grading inputs, final grade overrides, and import provenance while leaving forecast and plan calculations to the client]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -90,6 +90,46 @@ def _normalize_percentage(value: Optional[float], field_name: str, *, allow_none
     if not math.isfinite(numeric) or numeric < 0.0 or numeric > 100.0:
         raise GradebookValidationError(f"{field_name} must be between 0 and 100.")
     return numeric
+
+
+def _calculate_current_grade_percentage(gradebook: models.CourseGradebook) -> Optional[float]:
+    total_weight = sum(float(assessment.weight or 0.0) for assessment in gradebook.assessments)
+    if not math.isclose(total_weight, 100.0, abs_tol=0.001):
+        return None
+    return round(
+        sum(
+            (float(assessment.weight or 0.0) * float(assessment.score or 0.0)) / 100
+            for assessment in gradebook.assessments
+            if assessment.score is not None
+        ),
+        4,
+    )
+
+
+def _resolve_effective_grade_percentage(gradebook: models.CourseGradebook) -> Optional[float]:
+    if gradebook.final_grade_percentage_override is not None:
+        return float(gradebook.final_grade_percentage_override)
+    return _calculate_current_grade_percentage(gradebook)
+
+
+def _sync_course_grade_from_gradebook(
+    db: Session,
+    gradebook: models.CourseGradebook,
+    *,
+    clear_unavailable: bool = False,
+) -> None:
+    course = gradebook.course
+    if course is None:
+        raise GradebookValidationError("Gradebook must belong to a course.")
+
+    effective_percentage = _resolve_effective_grade_percentage(gradebook)
+    if effective_percentage is None:
+        if not clear_unavailable:
+            return
+        effective_percentage = 0.0
+
+    course.grade_percentage = effective_percentage
+    logic.update_course_stats(course, db, commit=False)
 
 
 def _normalize_target_gpa(value: float) -> float:
@@ -310,6 +350,11 @@ def build_course_gradebook_payload(gradebook: models.CourseGradebook) -> schemas
         course_id=course.id,
         target_gpa=float(gradebook.target_gpa),
         forecast_model=gradebook.forecast_model,
+        final_grade_percentage_override=(
+            float(gradebook.final_grade_percentage_override)
+            if gradebook.final_grade_percentage_override is not None
+            else None
+        ),
         scaling_table={str(key): float(value) for key, value in scaling_table.items()},
         categories=[
             schemas.GradebookAssessmentCategory.model_validate(category, from_attributes=True)
@@ -412,8 +457,15 @@ def update_preferences(
         gradebook.target_gpa = _normalize_target_gpa(payload.target_gpa)
     if payload.forecast_model is not None:
         gradebook.forecast_model = payload.forecast_model
+    if "final_grade_percentage_override" in payload.model_fields_set:
+        gradebook.final_grade_percentage_override = _normalize_percentage(
+            payload.final_grade_percentage_override,
+            "final_grade_percentage_override",
+        )
     _touch_gradebook(gradebook)
     db.add(gradebook)
+    if "final_grade_percentage_override" in payload.model_fields_set:
+        _sync_course_grade_from_gradebook(db, gradebook, clear_unavailable=True)
     result = build_course_gradebook_payload(gradebook)
     db.commit()
     db.refresh(gradebook)
@@ -643,6 +695,7 @@ def export_course_gradebook(course: models.Course) -> Optional[schemas.CourseGra
         revision=int(course.gradebook.revision or 1),
         target_gpa=course.gradebook.target_gpa,
         forecast_model=course.gradebook.forecast_model,
+        final_grade_percentage_override=course.gradebook.final_grade_percentage_override,
         categories=[
             schemas.GradebookAssessmentCategoryExport(
                 name=category.name,
@@ -688,6 +741,10 @@ def import_course_gradebook(
 
     gradebook.target_gpa = _normalize_target_gpa(payload.target_gpa)
     gradebook.forecast_model = payload.forecast_model
+    gradebook.final_grade_percentage_override = _normalize_percentage(
+        payload.final_grade_percentage_override,
+        "final_grade_percentage_override",
+    )
 
     categories_by_key: dict[str, models.GradebookAssessmentCategory] = {}
     for category_data in sorted(payload.categories, key=lambda item: item.order_index):
@@ -729,6 +786,7 @@ def import_course_gradebook(
 
     _touch_gradebook(gradebook)
     db.add(gradebook)
+    _sync_course_grade_from_gradebook(db, gradebook)
     db.flush()
     db.refresh(gradebook)
     result = build_course_gradebook_payload(gradebook)

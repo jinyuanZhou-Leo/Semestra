@@ -35,3 +35,4 @@ Keep downgrade steps practical, but prioritize accurate forward migrations for a
 | 20260415_0026_add_missing_fk_indexes.py | Schema migration | Adds missing foreign-key indexes needed by current runtime and cleanup paths. |
 | 20260415_0027_add_plugin_auto_enable_semesters.py | Schema migration | Adds Program-level plugin auto-enable policy for newly created Semesters. |
 | 20260424_0028_drop_course_hide_gpa.py | Schema migration | Drops the legacy Course-only `hide_gpa` column while preserving Program-level GPA hiding. |
+| 20260528_0029_add_gradebook_final_override.py | Schema migration | Adds nullable final-grade percentage overrides on course gradebooks so official course totals can take priority over calculated assessment grades. |

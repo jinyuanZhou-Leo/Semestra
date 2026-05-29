@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests, Program->Semester->unassigned-Course runtime plugin payloads, and Program/Semester/Course plugin management + plugin-system + Semester draft-wizard routes]
 // output: [Program/Semester/Course/Widget/Tab/TabSetting/Todo/Gradebook/LMS contract types, Program/Semester/unassigned-Course plugin management plus plugin-system/draft-wizard review wire models with typed Semester draft steps, runtime availability wire models, user types including active Program state, and default `api` CRUD service including irreversible account deletion]
-// pos:    [Main REST gateway used by dashboards, Program plugin lifecycle management, Program Home tab-setting persistence, V2 Program/Semester/Course tab-settings and runtime-tab persistence, Semester and unassigned-Course plugin enablement APIs, explicit plugin-system setup flows, typed Semester draft creation/review flows, auth-adjacent data flows including destructive account deletion, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin availability driven tab resolution]
+// pos:    [Main REST gateway used by dashboards, Program plugin lifecycle management, Program Home tab-setting persistence, V2 Program/Semester/Course tab-settings and runtime-tab persistence, Semester and unassigned-Course plugin enablement APIs, explicit plugin-system setup flows, typed Semester draft creation/review flows, auth-adjacent data flows including destructive account deletion, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs and final grade overrides, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin availability driven tab resolution]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -796,6 +796,7 @@ export interface CourseGradebook {
     course_id: string;
     target_gpa: number;
     forecast_model: GradebookForecastModel;
+    final_grade_percentage_override: number | null;
     scaling_table: GradebookScalingTable;
     categories: GradebookAssessmentCategory[];
     assessments: GradebookAssessment[];
@@ -1453,7 +1454,7 @@ const api = {
     },
     updateCourseGradebookPreferences: async (
         courseId: string,
-        data: { target_gpa?: number; forecast_model?: GradebookForecastModel }
+        data: { target_gpa?: number; forecast_model?: GradebookForecastModel; final_grade_percentage_override?: number | null }
     ) => {
         const response = await axios.patch<CourseGradebook>(`/api/courses/${courseId}/gradebook/preferences`, data);
         return response.data;
