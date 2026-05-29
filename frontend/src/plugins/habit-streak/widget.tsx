@@ -630,7 +630,10 @@ const CountdownDisplay: React.FC<{ remainingMs: number; onExpire: () => void }> 
 }) => {
     const [ms, setMs] = useState(initialRemainingMs);
     const onExpireRef = useRef(onExpire);
-    onExpireRef.current = onExpire;
+
+    useEffect(() => {
+        onExpireRef.current = onExpire;
+    }, [onExpire]);
 
     useEffect(() => {
         setMs(initialRemainingMs);

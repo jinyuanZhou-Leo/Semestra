@@ -75,10 +75,12 @@ import {
     formatBytes,
     formatTimestamp,
     getResourceExtensionLabel,
+    isExternalCourseResource,
     resolveResourceSortOrder,
     resolveCourseResourceHref,
     sortFiles,
 } from './shared';
+import { ExternalResourceConfirmDialog, type ExternalResourceOpenTarget } from './ExternalResourceConfirmDialog';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -287,7 +289,8 @@ const SemesterResourceExplorerList: React.FC<{
     onRename: (resource: CourseResourceFile) => void;
     onDelete: (resource: CourseResourceFile) => void;
     onDetails: (resource: CourseResourceFile) => void;
-}> = ({ courseId, files, isLoading, isError, onRetry, onAdd, onRename, onDelete, onDetails }) => {
+    onOpenExternalResource: (resource: CourseResourceFile, url: string) => void;
+}> = ({ courseId, files, isLoading, isError, onRetry, onAdd, onRename, onDelete, onDetails, onOpenExternalResource }) => {
     if (isLoading) {
         return (
             <div className="space-y-2">
@@ -330,19 +333,30 @@ const SemesterResourceExplorerList: React.FC<{
             <div className="divide-y divide-border/60 border-y border-border/60">
                 {files.map((resource) => {
                     const openUrl = resolveCourseResourceHref(courseId, resource);
+                    const opensExternalUrl = isExternalCourseResource(resource);
                     const ResourceIcon = getResourceIcon(resource);
                     return (
                         <div key={resource.id} className="flex items-center gap-3 px-2 py-3">
                             <ResourceIcon className="h-4.5 w-4.5 shrink-0 text-muted-foreground" />
                             <div className="min-w-0 flex-1">
-                                <a
-                                    href={openUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="block truncate text-sm font-medium text-foreground transition-colors hover:text-primary"
-                                >
-                                    {resource.filename_display}
-                                </a>
+                                {opensExternalUrl ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => onOpenExternalResource(resource, openUrl)}
+                                        className="block max-w-full truncate text-left text-sm font-medium text-foreground transition-colors hover:text-primary"
+                                    >
+                                        {resource.filename_display}
+                                    </button>
+                                ) : (
+                                    <a
+                                        href={openUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="block truncate text-sm font-medium text-foreground transition-colors hover:text-primary"
+                                    >
+                                        {resource.filename_display}
+                                    </a>
+                                )}
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                     <span>{resource.resource_kind === 'link' ? 'Saved URL' : getResourceExtensionLabel(resource)}</span>
                                     <span>{resource.resource_kind === 'link' ? 'No local file' : formatBytes(resource.size_bytes)}</span>
@@ -703,6 +717,7 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
     const [resourceToDelete, setResourceToDelete] = React.useState<CourseResourceFile | null>(null);
     const [detailsFolder, setDetailsFolder] = React.useState<ResourceFolderDetails | null>(null);
     const [detailsResource, setDetailsResource] = React.useState<CourseResourceFile | null>(null);
+    const [externalResourceTarget, setExternalResourceTarget] = React.useState<ExternalResourceOpenTarget | null>(null);
     const [detailsNameValue, setDetailsNameValue] = React.useState('');
     const [detailsUrlValue, setDetailsUrlValue] = React.useState('');
     const [renameValue, setRenameValue] = React.useState('');
@@ -925,6 +940,16 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
         }
     }, [detailsNameValue, detailsResource, detailsUrlValue, updateResourceMutation]);
 
+    const requestExternalResourceOpen = React.useCallback((resource: CourseResourceFile, url: string) => {
+        setExternalResourceTarget({ name: resource.filename_display, url });
+    }, []);
+
+    const confirmExternalResourceOpen = React.useCallback(() => {
+        if (!externalResourceTarget) return;
+        window.open(externalResourceTarget.url, '_blank', 'noopener,noreferrer');
+        setExternalResourceTarget(null);
+    }, [externalResourceTarget]);
+
     // ── Empty / error context guards ─────────────────────────────────────────
 
     // Hidden file input — rendered once at tab root, triggered via fileInputRef.current.click()
@@ -1071,6 +1096,7 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
                                         onRename={openRenameDialog}
                                         onDelete={setResourceToDelete}
                                         onDetails={openResourceDetailsDialog}
+                                        onOpenExternalResource={(resource, url) => void requestExternalResourceOpen(resource, url)}
                                     />
                                 ) : isListError ? (
                                     <AppEmptyState
@@ -1146,6 +1172,7 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
                             onRename={openRenameDialog}
                             onDelete={setResourceToDelete}
                             onDetails={openResourceDetailsDialog}
+                            onOpenExternalResource={(resource, url) => void requestExternalResourceOpen(resource, url)}
                         />
                     </>
                 )}
@@ -1212,6 +1239,14 @@ const CourseResourcesTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
                 onNameChange={setDetailsNameValue}
                 onUrlChange={setDetailsUrlValue}
                 onSave={() => void submitResourceDetails()}
+            />
+
+            <ExternalResourceConfirmDialog
+                target={externalResourceTarget}
+                onOpenChange={(open) => {
+                    if (!open) setExternalResourceTarget(null);
+                }}
+                onConfirm={confirmExternalResourceOpen}
             />
 
             <AlertDialog open={Boolean(resourceToDelete)} onOpenChange={(open) => !open && setResourceToDelete(null)}>

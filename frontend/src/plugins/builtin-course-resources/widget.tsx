@@ -32,11 +32,13 @@ import {
     COURSE_RESOURCES_WIDGET_TYPE,
     formatBytes,
     getResourceExtensionLabel,
+    isExternalCourseResource,
     resizeWidgetSlots,
     resolveCourseResourceHref,
     resolveCourseResourcesWidgetSettings,
     type CourseResourcesSlotCount,
 } from './shared';
+import { ExternalResourceConfirmDialog, type ExternalResourceOpenTarget } from './ExternalResourceConfirmDialog';
 
 const resolveGridClassName = (slotCount: CourseResourcesSlotCount) => {
     if (slotCount === 1) return 'grid-cols-1';
@@ -50,7 +52,8 @@ const ResourceCard: React.FC<{
     href?: string;
     isLink?: boolean;
     unavailable?: boolean;
-}> = ({ title, meta, href, isLink = false, unavailable = false }) => {
+    onOpen?: () => void;
+}> = ({ title, meta, href, isLink = false, unavailable = false, onOpen }) => {
     const content = (
         <div className={cn(
             'flex h-full min-h-0 flex-col justify-between rounded-[24px] bg-muted/40 p-3 text-left transition-colors',
@@ -77,14 +80,32 @@ const ResourceCard: React.FC<{
 
     if (!href) return content;
 
+    if (onOpen) {
+        return (
+            <button
+                type="button"
+                className="block h-full min-h-0 w-full"
+                onClick={onOpen}
+            >
+                {content}
+            </button>
+        );
+    }
+
     return (
-        <a href={href} target="_blank" rel="noreferrer" className="block h-full min-h-0">
+        <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="block h-full min-h-0"
+        >
             {content}
         </a>
     );
 };
 
 const CourseResourcesQuickOpenWidget: React.FC<WidgetProps> = ({ courseId, settings }) => {
+    const [externalResourceTarget, setExternalResourceTarget] = React.useState<ExternalResourceOpenTarget | null>(null);
     const resolved = resolveCourseResourcesWidgetSettings(settings);
     const resourcesQuery = useQuery({
         queryKey: courseId ? queryKeys.courses.resources(courseId) : ['courses', 'resources', 'disabled'],
@@ -126,43 +147,61 @@ const CourseResourcesQuickOpenWidget: React.FC<WidgetProps> = ({ courseId, setti
     }
 
     const resourceMap = new Map(resourcesQuery.data.files.map((resource) => [resource.id, resource]));
+    const confirmExternalResourceOpen = () => {
+        if (!externalResourceTarget) return;
+        window.open(externalResourceTarget.url, '_blank', 'noopener,noreferrer');
+        setExternalResourceTarget(null);
+    };
 
     return (
-        <div className={cn('grid h-full min-h-0 gap-2.5 p-2.5', resolveGridClassName(resolved.slotCount))}>
-            {resolved.resourceIds.map((resourceId, index) => {
-                const resource = resourceMap.get(resourceId);
-                if (!resourceId) {
+        <>
+            <div className={cn('grid h-full min-h-0 gap-2.5 p-2.5', resolveGridClassName(resolved.slotCount))}>
+                {resolved.resourceIds.map((resourceId, index) => {
+                    const resource = resourceMap.get(resourceId);
+                    if (!resourceId) {
+                        return (
+                            <ResourceCard
+                                key={`empty-${index}`}
+                                title="Choose a file in widget settings"
+                                meta={`Slot ${index + 1}`}
+                            />
+                        );
+                    }
+                    if (!resource) {
+                        return (
+                            <ResourceCard
+                                key={`missing-${index}`}
+                                title="This file is no longer available"
+                                meta={`Slot ${index + 1}`}
+                                unavailable
+                            />
+                        );
+                    }
+                    const href = resolveCourseResourceHref(courseId, resource);
                     return (
                         <ResourceCard
-                            key={`empty-${index}`}
-                            title="Choose a file in widget settings"
-                            meta={`Slot ${index + 1}`}
+                            key={`${resource.id}-${index}`}
+                            title={resource.filename_display}
+                            meta={resource.resource_kind === 'link'
+                                ? 'Saved link'
+                                : `${getResourceExtensionLabel(resource)} · ${formatBytes(resource.size_bytes)}`}
+                            href={href}
+                            isLink={resource.resource_kind === 'link'}
+                            onOpen={isExternalCourseResource(resource)
+                                ? () => setExternalResourceTarget({ name: resource.filename_display, url: href })
+                                : undefined}
                         />
                     );
-                }
-                if (!resource) {
-                    return (
-                        <ResourceCard
-                            key={`missing-${index}`}
-                            title="This file is no longer available"
-                            meta={`Slot ${index + 1}`}
-                            unavailable
-                        />
-                    );
-                }
-                return (
-                    <ResourceCard
-                        key={`${resource.id}-${index}`}
-                        title={resource.filename_display}
-                        meta={resource.resource_kind === 'link'
-                            ? 'Saved link'
-                            : `${getResourceExtensionLabel(resource)} · ${formatBytes(resource.size_bytes)}`}
-                        href={resolveCourseResourceHref(courseId, resource)}
-                        isLink={resource.resource_kind === 'link'}
-                    />
-                );
-            })}
-        </div>
+                })}
+            </div>
+            <ExternalResourceConfirmDialog
+                target={externalResourceTarget}
+                onOpenChange={(open) => {
+                    if (!open) setExternalResourceTarget(null);
+                }}
+                onConfirm={confirmExternalResourceOpen}
+            />
+        </>
     );
 };
 

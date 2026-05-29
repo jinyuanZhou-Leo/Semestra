@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
     formatBytes,
     getResourceExtensionLabel,
+    isExternalCourseResource,
     resizeWidgetSlots,
     resolveCourseResourceHref,
     resolveCourseResourcesWidgetSettings,
@@ -49,5 +50,16 @@ describe('course-resources shared helpers', () => {
             resource_kind: 'link',
             external_url: 'https://example.com/resource',
         })).toBe('https://example.com/resource');
+    });
+
+    it('identifies URL resources as external open targets', () => {
+        expect(isExternalCourseResource({
+            resource_kind: 'link',
+            external_url: 'https://example.com/resource',
+        })).toBe(true);
+        expect(isExternalCourseResource({
+            resource_kind: 'file',
+            external_url: null,
+        })).toBe(false);
     });
 });

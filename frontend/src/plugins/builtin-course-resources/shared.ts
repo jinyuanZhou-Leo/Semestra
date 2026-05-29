@@ -13,6 +13,8 @@ import type { CourseResourceFile } from '@/services/api';
 export const COURSE_RESOURCES_PLUGIN_ID = 'builtin-course-resources';
 export const COURSE_RESOURCES_TAB_TYPE = 'builtin-course-resources';
 export const COURSE_RESOURCES_WIDGET_TYPE = 'builtin-course-resources-quick-open';
+export const EXTERNAL_COURSE_RESOURCE_CONFIRM_TITLE = 'Open external URL?';
+export const EXTERNAL_COURSE_RESOURCE_CONFIRM_DESCRIPTION = 'This resource opens outside Semestra.';
 
 export type ResourceSortOrder = 'newest' | 'oldest' | 'name_asc' | 'name_desc';
 
@@ -87,6 +89,10 @@ export const resolveCourseResourceHref = (courseId: string, resource: Pick<Cours
     }
     return `/api/courses/${courseId}/resources/${resource.id}/download`;
 };
+
+export const isExternalCourseResource = (resource: Pick<CourseResourceFile, 'resource_kind' | 'external_url'>) => (
+    resource.resource_kind === 'link' && Boolean(resource.external_url)
+);
 
 export const formatBytes = (value: number) => {
     if (!Number.isFinite(value) || value <= 0) return '0 B';
