@@ -51,20 +51,46 @@ const upsertTabSetting = (
   return list;
 };
 
+type TabSettingsUpdater = (current: TabSetting[] | null | undefined) => TabSetting[] | null | undefined;
+
+interface ScopeStrategy {
+  upsert: (settingsKey: string, payload: { settings: string }) => Promise<TabSetting>;
+  setQueryData: (queryClient: QueryClient, updater: TabSettingsUpdater) => void;
+  queryKey: readonly unknown[];
+}
+
+// Per-scope plumbing collected in one place so the CRUD helpers below stay free
+// of repeated `scope.kind` branching. Each branch wires the scope's own id into
+// the matching API call, cache setter, and query key.
+const getScopeStrategy = (scope: PluginSettingsScope): ScopeStrategy => {
+  switch (scope.kind) {
+    case "program":
+      return {
+        upsert: (settingsKey, payload) => api.upsertProgramTabSettings(scope.programId, settingsKey, payload),
+        setQueryData: (queryClient, updater) => setProgramTabSettingsQueryData(queryClient, scope.programId, updater),
+        queryKey: programKeys.tabSettings(scope.programId),
+      };
+    case "semester":
+      return {
+        upsert: (settingsKey, payload) => api.upsertSemesterTabSettings(scope.semesterId, settingsKey, payload),
+        setQueryData: (queryClient, updater) => setSemesterTabSettingsQueryData(queryClient, scope.semesterId, updater),
+        queryKey: semesterKeys.tabSettings(scope.semesterId),
+      };
+    case "course":
+      return {
+        upsert: (settingsKey, payload) => api.upsertCourseTabSettings(scope.courseId, settingsKey, payload),
+        setQueryData: (queryClient, updater) => setCourseTabSettingsQueryData(queryClient, scope.courseId, updater),
+        queryKey: courseKeys.tabSettings(scope.courseId),
+      };
+  }
+};
+
 export const applyScopeEntityUpdate = (
   queryClient: QueryClient,
   scope: PluginSettingsScope,
   nextTabSetting: TabSetting,
 ) => {
-  if (scope.kind === "program") {
-    setProgramTabSettingsQueryData(queryClient, scope.programId, (current) => upsertTabSetting(current, nextTabSetting));
-    return;
-  }
-  if (scope.kind === "semester") {
-    setSemesterTabSettingsQueryData(queryClient, scope.semesterId, (current) => upsertTabSetting(current, nextTabSetting));
-    return;
-  }
-  setCourseTabSettingsQueryData(queryClient, scope.courseId, (current) => upsertTabSetting(current, nextTabSetting));
+  getScopeStrategy(scope).setQueryData(queryClient, (current) => upsertTabSetting(current, nextTabSetting));
 };
 
 export const persistScopeSettings = async (
@@ -73,13 +99,7 @@ export const persistScopeSettings = async (
   nextSettings: Record<string, unknown>,
 ): Promise<TabSetting> => {
   const payload = { settings: JSON.stringify(nextSettings) };
-  if (scope.kind === "program") {
-    return api.upsertProgramTabSettings(scope.programId, settingsKey, payload);
-  }
-  if (scope.kind === "semester") {
-    return api.upsertSemesterTabSettings(scope.semesterId, settingsKey, payload);
-  }
-  return api.upsertCourseTabSettings(scope.courseId, settingsKey, payload);
+  return getScopeStrategy(scope).upsert(settingsKey, payload);
 };
 
 export const invalidateScopeQuery = (
@@ -89,15 +109,7 @@ export const invalidateScopeQuery = (
   // Mark stale so the next mount/focus refetch picks up the change, but do NOT trigger
   // an immediate background refetch. applyScopeEntityUpdate already wrote the API response
   // into the cache, so the UI is already up-to-date.
-  if (scope.kind === "program") {
-    queryClient.invalidateQueries({ queryKey: programKeys.tabSettings(scope.programId), refetchType: 'none' });
-    return;
-  }
-  if (scope.kind === "semester") {
-    queryClient.invalidateQueries({ queryKey: semesterKeys.tabSettings(scope.semesterId), refetchType: 'none' });
-    return;
-  }
-  queryClient.invalidateQueries({ queryKey: courseKeys.tabSettings(scope.courseId), refetchType: 'none' });
+  queryClient.invalidateQueries({ queryKey: getScopeStrategy(scope).queryKey, refetchType: 'none' });
 };
 
 export const refetchScopeTabSettings = (
@@ -105,13 +117,5 @@ export const refetchScopeTabSettings = (
   scope: PluginSettingsScope,
 ): void => {
   // Force an active refetch to roll back the cache to server truth after a failed write.
-  if (scope.kind === "program") {
-    queryClient.invalidateQueries({ queryKey: programKeys.tabSettings(scope.programId), refetchType: 'active' });
-    return;
-  }
-  if (scope.kind === "semester") {
-    queryClient.invalidateQueries({ queryKey: semesterKeys.tabSettings(scope.semesterId), refetchType: 'active' });
-    return;
-  }
-  queryClient.invalidateQueries({ queryKey: courseKeys.tabSettings(scope.courseId), refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: getScopeStrategy(scope).queryKey, refetchType: 'active' });
 };

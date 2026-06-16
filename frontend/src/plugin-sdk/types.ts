@@ -6,12 +6,27 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import type { FC, ReactNode } from 'react';
 import type {
   PluginSettingsScope as RegistryPluginSettingsScope,
   PluginSettingsSectionDefinition as RegistryPluginSettingsSectionDefinition,
   PluginSettingsSectionProps as RegistryPluginSettingsSectionProps,
 } from '@/services/pluginSettingsRegistry';
+import type {
+  HeaderActionButtonProps,
+  HeaderButton,
+  HeaderButtonContext,
+  HeaderButtonRenderHelpers,
+  HeaderConfirmActionButtonProps,
+  WidgetDefinition,
+  WidgetLifecycleContext,
+  WidgetProps,
+  WidgetSettingsProps,
+} from '@/services/widgetRegistry';
+import type {
+  TabDefinition,
+  TabLifecycleContext,
+  TabProps,
+} from '@/services/tabRegistry';
 
 import type {
   PluginSetupUiDefinition as PluginSetupOverrideDefinition,
@@ -26,99 +41,24 @@ import type {
 } from './manifest-types.ts';
 export type * from './manifest-types.ts';
 
-export interface PluginTabProps {
-  tabId: string;
-  semesterId?: string;
-  courseId?: string;
-}
+// Tab/widget/header authoring contracts are owned by the in-memory registries
+// (`services/tabRegistry`, `services/widgetRegistry`). The SDK re-exports them
+// under the `Plugin*` names so plugin authors keep a single import surface
+// without maintaining a parallel, drift-prone copy of these shapes.
+export type PluginTabProps = TabProps;
+export type PluginTabLifecycleContext = TabLifecycleContext;
+export type PluginTabDefinition = TabDefinition;
 
-export interface PluginTabLifecycleContext {
-  tabId: string;
-  semesterId?: string;
-  courseId?: string;
-}
+export type PluginHeaderButtonContext = HeaderButtonContext;
+export type PluginHeaderActionButtonProps = HeaderActionButtonProps;
+export type PluginHeaderConfirmActionButtonProps = HeaderConfirmActionButtonProps;
+export type PluginHeaderButtonRenderHelpers = HeaderButtonRenderHelpers;
+export type PluginHeaderButton = HeaderButton;
 
-export interface PluginTabDefinition {
-  type: string;
-  component: FC<PluginTabProps>;
-  onCreate?: (context: PluginTabLifecycleContext) => Promise<void> | void;
-  onDelete?: (context: PluginTabLifecycleContext) => Promise<void> | void;
-}
-
-export interface PluginHeaderButtonContext {
-  widgetId: string;
-  settings: unknown;
-  semesterId?: string;
-  courseId?: string;
-  updateSettings: (nextSettings: unknown) => void | Promise<void>;
-}
-
-export interface PluginHeaderActionButtonProps {
-  title: string;
-  icon: ReactNode;
-  onClick: () => void | Promise<void>;
-  variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'destructive' | 'link';
-}
-
-export interface PluginHeaderConfirmActionButtonProps extends PluginHeaderActionButtonProps {
-  dialogTitle: string;
-  dialogDescription?: string;
-  confirmText?: string;
-  cancelText?: string;
-  confirmVariant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'destructive' | 'link';
-}
-
-export interface PluginHeaderButtonRenderHelpers {
-  ActionButton: FC<PluginHeaderActionButtonProps>;
-  ConfirmActionButton: FC<PluginHeaderConfirmActionButtonProps>;
-}
-
-export interface PluginHeaderButton {
-  id: string;
-  render: (context: PluginHeaderButtonContext, helpers: PluginHeaderButtonRenderHelpers) => ReactNode;
-}
-
-export interface PluginWidgetProps<S = unknown> {
-  widgetId: string;
-  settings: S;
-  semesterId?: string;
-  courseId?: string;
-  updateSettings: (nextSettings: S) => void | Promise<void>;
-  updateCourse?: (updates: Record<string, unknown>) => void;
-}
-
-export interface PluginWidgetLifecycleContext {
-  widgetId: string;
-  semesterId?: string;
-  courseId?: string;
-  settings: unknown;
-}
-
-export interface PluginWidgetSettingsProps<S = unknown> {
-  widgetId?: string;
-  semesterId?: string;
-  courseId?: string;
-  settings: S;
-  onSettingsChange: (nextSettings: S) => void;
-}
-
-type PluginWidgetComponent<S = unknown> = {
-  bivarianceHack(props: PluginWidgetProps<S>): ReturnType<FC<PluginWidgetProps<S>>>;
-}['bivarianceHack'];
-
-type PluginWidgetSettingsComponent<S = unknown> = {
-  bivarianceHack(props: PluginWidgetSettingsProps<S>): ReturnType<FC<PluginWidgetSettingsProps<S>>>;
-}['bivarianceHack'];
-
-export interface PluginWidgetDefinition<S = unknown> {
-  type: string;
-  component: PluginWidgetComponent<S>;
-  defaultSettings?: S;
-  headerButtons?: PluginHeaderButton[];
-  SettingsComponent?: PluginWidgetSettingsComponent<S>;
-  onCreate?: (context: PluginWidgetLifecycleContext) => Promise<void> | void;
-  onDelete?: (context: PluginWidgetLifecycleContext) => Promise<void> | void;
-}
+export type PluginWidgetProps<S = unknown> = WidgetProps<S>;
+export type PluginWidgetLifecycleContext = WidgetLifecycleContext;
+export type PluginWidgetSettingsProps<S = unknown> = WidgetSettingsProps<S>;
+export type PluginWidgetDefinition<S = unknown> = WidgetDefinition<S>;
 
 export type PluginSettingsScope = RegistryPluginSettingsScope;
 export type PluginSettingsSectionProps = RegistryPluginSettingsSectionProps;

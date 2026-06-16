@@ -1,10 +1,11 @@
 import type { TabContext } from '../services/tabRegistry';
 import type { WidgetContext } from '../services/widgetRegistry';
+import type { MaxInstances } from '@/plugin-sdk/manifest-types';
+
+export type { MaxInstances };
 
 export const DEFAULT_TAB_ALLOWED_CONTEXTS: TabContext[] = ['semester', 'course'];
 export const DEFAULT_WIDGET_ALLOWED_CONTEXTS: WidgetContext[] = ['semester', 'course'];
-
-export type MaxInstances = number | 'unlimited';
 
 export const isUnlimitedInstances = (maxInstances?: MaxInstances) => {
     if (maxInstances === undefined || maxInstances === 'unlimited') return true;

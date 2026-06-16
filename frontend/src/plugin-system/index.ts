@@ -47,6 +47,7 @@ import {
   type PluginEntry,
 } from './pluginRuntimeLoader';
 import { resolvePluginIcon } from './iconResolver';
+import { dedupePluginEntries, validateSettingsSectionBindings } from './pluginValidation';
 import type {
   PluginKind,
   PluginManifestItem,
@@ -160,18 +161,6 @@ const toWidgetCatalogItem = (
   maxInstances: widgetDefinition.max_instances,
 });
 
-const validateSettingsSectionBindings = (definition: PluginDefinition) => {
-  const declaredSectionIds = new Set((definition.descriptor.settings?.panels ?? []).map((section) => section.id));
-  const settingsSections = definition.settingsSections ?? [];
-  settingsSections.forEach((section) => {
-    if (!declaredSectionIds.has(section.id)) {
-      throw new Error(
-        `[plugin-system] Settings section "${section.id}" in plugin "${definition.descriptor.id}" is missing from plugin.ts descriptor.settings.panels.`
-      );
-    }
-  });
-};
-
 const rawEntries = pluginModulePaths.map((path) => {
   const definition = pluginModules[path]?.default;
   const directoryName = getDirectoryName(path);
@@ -196,61 +185,7 @@ const rawEntries = pluginModulePaths.map((path) => {
   );
 }).filter((entry): entry is PluginEntry => entry !== null);
 
-const acceptedPluginIds = new Set<string>();
-const acceptedTabTypes = new Map<string, string>();
-const acceptedWidgetTypes = new Map<string, string>();
-
-const pluginEntries = rawEntries.filter((entry) => {
-  const errors: string[] = [];
-
-  if (acceptedPluginIds.has(entry.id)) {
-    errors.push(`Duplicate pluginId "${entry.id}"`);
-  }
-
-  const ownTabTypes = new Set<string>();
-  entry.tabCatalog.forEach((item) => {
-    if (item.pluginId !== entry.id) {
-      errors.push(`Tab catalog item "${item.type}" has mismatched pluginId "${item.pluginId}"`);
-    }
-    if (ownTabTypes.has(item.type)) {
-      errors.push(`Duplicate tab type "${item.type}" inside plugin "${entry.id}"`);
-      return;
-    }
-    ownTabTypes.add(item.type);
-
-    const existingOwner = acceptedTabTypes.get(item.type);
-    if (existingOwner) {
-      errors.push(`Duplicate tab type "${item.type}" already owned by "${existingOwner}"`);
-    }
-  });
-
-  const ownWidgetTypes = new Set<string>();
-  entry.widgetCatalog.forEach((item) => {
-    if (item.pluginId !== entry.id) {
-      errors.push(`Widget catalog item "${item.type}" has mismatched pluginId "${item.pluginId}"`);
-    }
-    if (ownWidgetTypes.has(item.type)) {
-      errors.push(`Duplicate widget type "${item.type}" inside plugin "${entry.id}"`);
-      return;
-    }
-    ownWidgetTypes.add(item.type);
-
-    const existingOwner = acceptedWidgetTypes.get(item.type);
-    if (existingOwner) {
-      errors.push(`Duplicate widget type "${item.type}" already owned by "${existingOwner}"`);
-    }
-  });
-
-  if (errors.length > 0) {
-    failValidation(`[plugin-system] Invalid plugin "${entry.id}": ${errors.join('; ')}`);
-    return false;
-  }
-
-  acceptedPluginIds.add(entry.id);
-  ownTabTypes.forEach((type) => acceptedTabTypes.set(type, entry.id));
-  ownWidgetTypes.forEach((type) => acceptedWidgetTypes.set(type, entry.id));
-  return true;
-});
+const pluginEntries = dedupePluginEntries(rawEntries, failValidation);
 
 const pluginsById = new Map(pluginEntries.map((entry) => [entry.id, entry]));
 const pluginsByDirectoryName = new Map(pluginEntries.map((entry) => [entry.directoryName, entry]));
