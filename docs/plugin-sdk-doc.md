@@ -126,6 +126,7 @@ Import plugin authoring APIs from `@/plugin-sdk` or `@/plugin-sdk/authoring.ts`.
 Most plugin runtime code should use:
 
 - `definePlugin`
+- `definePluginManifest`
 - `definePluginRuntime`
 - `defineTab`
 - `defineWidget`
@@ -161,8 +162,10 @@ It should declare:
 
 - `descriptor`
 - `loadRuntime`
-- optional `settingsSections`
+- optional `settingsDefinition` (the default export of `settings.tsx`, produced by `definePluginSettings()`)
 - optional `setup`
+
+> The legacy `settingsSections` field still exists but is deprecated; new plugins pass `settingsDefinition` instead.
 
 Minimal example:
 
@@ -175,6 +178,7 @@ import {
   definePluginManifest,
 } from "@/plugin-sdk/authoring.ts";
 
+import settingsDefinition from "./settings.tsx";
 import setupDefinition from "./setup.tsx";
 
 export default definePlugin({
@@ -205,6 +209,7 @@ export default definePlugin({
     },
   }),
   loadRuntime: async () => (await import("./index")).default,
+  settingsDefinition,
   setup: createPluginSetupBinding(setupDefinition),
 });
 ```
@@ -577,14 +582,12 @@ The setup screen may span multiple tabs. It is not constrained to a single runti
 
 ### 9.2 Validation rule
 
-Setup validation is frontend-owned.
+Setup validation runs on both sides, with a clear split:
 
-Use:
+- field-level `validate` and definition-level `validate` in `setup.tsx` are frontend-only. They shape wizard interaction and review presentation.
+- the backend independently re-validates on every API call: it enforces `required` fields and any schema `validation_rules` regardless of the frontend.
 
-- field-level `validate`
-- definition-level `validate`
-
-Validation controls wizard interaction and review presentation, but plugin authors should treat `setup.tsx` as the place where setup semantics are defined.
+So author setup semantics in `setup.tsx`, but never rely on the frontend `validate` callbacks for data integrity — they do not run on the backend.
 
 ### 9.3 Persistence rule
 
