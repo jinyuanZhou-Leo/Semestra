@@ -100,7 +100,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import { ArrowUpDown, BookOpen, ChevronDown, ChevronRight, Command, LayoutDashboard, Plus, Settings } from 'lucide-react';
-import { AnimatePresence, motion, useAnimationControls } from 'framer-motion';
+import { Calligraph } from 'calligraph';
+import { motion, useAnimationControls } from 'framer-motion';
 import type { LayoutCommandGroup } from '../components/GlobalCommandPalette';
 import { resolveRequestedCourseTabId } from './courseHomepageNavigation';
 
@@ -108,15 +109,32 @@ interface CourseHomepageLocationState {
     preferredTabType?: string;
 }
 
-function getCourseSwitchOffset(direction: -1 | 0 | 1, phase: 'enter' | 'exit'): number {
-    if (direction === 0) {
-        return 0;
+const renderCourseTitle = (
+    courseName: string,
+    options: {
+        className: string;
+        prefersReducedMotion: boolean;
+        courseSwitchDirection: -1 | 0 | 1;
+        onSwitchAnimationComplete: () => void;
+    },
+) => {
+    if (options.prefersReducedMotion) {
+        return <span className={options.className}>{courseName}</span>;
     }
-    if (phase === 'enter') {
-        return direction > 0 ? 10 : -10;
-    }
-    return direction > 0 ? -10 : 10;
-}
+
+    return (
+        <Calligraph
+            variant="text"
+            animation="snappy"
+            trend={options.courseSwitchDirection}
+            autoSize={false}
+            className={options.className}
+            onComplete={options.onSwitchAnimationComplete}
+        >
+            {courseName}
+        </Calligraph>
+    );
+};
 
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
@@ -940,32 +958,16 @@ const CourseHomepageContent: React.FC = () => {
                                                         className="h-auto min-w-0 max-w-full justify-start gap-2 rounded-md bg-accent/60 px-2.5 py-1 text-left text-[0.9em] font-semibold tracking-tight text-foreground hover:bg-accent/70"
                                                     >
                                                     <span className="grid min-w-0">
-                                                        <AnimatePresence mode="wait" initial={false}>
-                                                            <motion.span
-                                                                key={course.id}
-                                                                className="truncate"
-                                                                initial={prefersReducedMotion ? { opacity: 1 } : {
-                                                                    opacity: 0,
-                                                                    y: getCourseSwitchOffset(courseSwitchDirection, 'enter'),
-                                                                }}
-                                                                animate={{ opacity: 1, y: 0 }}
-                                                                exit={prefersReducedMotion ? { opacity: 1 } : {
-                                                                    opacity: 0,
-                                                                    y: getCourseSwitchOffset(courseSwitchDirection, 'exit'),
-                                                                }}
-                                                                transition={prefersReducedMotion
-                                                                    ? { duration: 0.12 }
-                                                                    : { type: 'spring', stiffness: 520, damping: 38, mass: 0.7 }
+                                                        {renderCourseTitle(course.name, {
+                                                            className: 'truncate',
+                                                            prefersReducedMotion,
+                                                            courseSwitchDirection,
+                                                            onSwitchAnimationComplete: () => {
+                                                                if (courseSwitchDirection !== 0) {
+                                                                    setCourseSwitchDirection(0);
                                                                 }
-                                                                onAnimationComplete={() => {
-                                                                    if (courseSwitchDirection !== 0) {
-                                                                        setCourseSwitchDirection(0);
-                                                                    }
-                                                                }}
-                                                            >
-                                                                {course.name}
-                                                            </motion.span>
-                                                        </AnimatePresence>
+                                                            },
+                                                        })}
                                                     </span>
                                                     <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                                                 </Button>
@@ -992,32 +994,16 @@ const CourseHomepageContent: React.FC = () => {
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     ) : (
-                                        <AnimatePresence mode="wait" initial={false}>
-                                            <motion.span
-                                                key={course.id}
-                                                className="truncate text-foreground"
-                                                initial={prefersReducedMotion ? { opacity: 1 } : {
-                                                    opacity: 0,
-                                                    y: getCourseSwitchOffset(courseSwitchDirection, 'enter'),
-                                                }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={prefersReducedMotion ? { opacity: 1 } : {
-                                                    opacity: 0,
-                                                    y: getCourseSwitchOffset(courseSwitchDirection, 'exit'),
-                                                }}
-                                                transition={prefersReducedMotion
-                                                    ? { duration: 0.12 }
-                                                    : { type: 'spring', stiffness: 520, damping: 38, mass: 0.7 }
+                                        renderCourseTitle(course.name, {
+                                            className: 'truncate text-foreground',
+                                            prefersReducedMotion,
+                                            courseSwitchDirection,
+                                            onSwitchAnimationComplete: () => {
+                                                if (courseSwitchDirection !== 0) {
+                                                    setCourseSwitchDirection(0);
                                                 }
-                                                onAnimationComplete={() => {
-                                                    if (courseSwitchDirection !== 0) {
-                                                        setCourseSwitchDirection(0);
-                                                    }
-                                                }}
-                                            >
-                                                {course.name}
-                                            </motion.span>
-                                        </AnimatePresence>
+                                            },
+                                        })
                                     )}
                                 </motion.div>
                                 {course.semester_id && siblingCourses.length > 1 ? (
