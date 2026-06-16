@@ -27,7 +27,6 @@ import {
 import { Container } from '../components/Container';
 import { DataTable, DataTableActionMenu, type ColumnDef } from '../components/DataTable';
 import api, { type Course, type Semester } from '../services/api';
-import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -36,7 +35,7 @@ import { ProgramDataProvider, useProgramData } from '../contexts/ProgramDataCont
 import { CourseManagerModal } from '../components/CourseManagerModal';
 import { useDialog } from '../contexts/DialogContext';
 import { useAuth } from '../contexts/AuthContext';
-import { formatGpaPercentage, formatGpaPercentageValue } from '@/utils/percentage';
+import { formatGpaPercentage } from '@/utils/percentage';
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -63,11 +62,12 @@ import {
     ComboboxValue,
     useComboboxAnchor,
 } from '@/components/ui/combobox';
-import { Settings, Plus, Search, Trash2, GraduationCap, Percent, BookOpen, Eye, EyeOff, Tag, Calendar, Hash, TrendingUp, Layers } from 'lucide-react';
+import { Settings, Plus, Search, Trash2, Tag, Calendar, Hash, TrendingUp, Layers } from 'lucide-react';
 import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor, resolveCourseSubjectCode, resolveSubjectColorAssignments } from '@/utils/courseCategoryBadge';
 import { CreateSemesterWizardButton } from './program-dashboard/CreateSemesterWizardButton';
 import { DeleteSemesterButton } from './program-dashboard/DeleteSemesterButton';
 import { ProgramFocusBoard } from './program-dashboard/ProgramFocusBoard';
+import { ProgramStatsSection } from './program-dashboard/ProgramStatsSection';
 import type { LayoutCommandGroup } from '../components/GlobalCommandPalette';
 import {
     PROGRAM_HOME_TAB_TYPE,
@@ -755,6 +755,13 @@ const ProgramDashboardContent: React.FC = () => {
         [programCourses],
     );
 
+    const unassignedCredits = useMemo(
+        () => unassignedCourses.reduce((sum, course) => sum + (course.credits || 0), 0),
+        [unassignedCourses],
+    );
+
+    const unassignedCourseCount = unassignedCourses.length;
+
     const resolvedSubjectColorMap = useMemo(() => {
         const subjectCodes = programCourses
             .map((course) => resolveCourseSubjectCode(course))
@@ -897,11 +904,24 @@ const ProgramDashboardContent: React.FC = () => {
                 {isLoading || !program ? (
                     <>
                         {/* Overview Section Skeleton */}
-                        <section>
-                            <TextSkeleton variant="h3" className="mb-4" />
-                            <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-4">
+                        <section className="space-y-4">
+                            <TextSkeleton variant="h3" />
+                            <div className="grid gap-4 md:grid-cols-3">
                                 {[1, 2, 3].map(i => (
                                     <StatCardSkeleton key={i} />
+                                ))}
+                            </div>
+                            <div className="grid gap-4 lg:grid-cols-2">
+                                {[1, 2].map(i => (
+                                    <Card key={i} className="border-border/50 bg-muted/10 shadow-none">
+                                        <div className="flex flex-col gap-2 p-6 pb-2">
+                                            <Skeleton className="h-5 w-40" />
+                                            <Skeleton className="h-4 w-56" />
+                                        </div>
+                                        <div className="p-6 pt-0">
+                                            <Skeleton className="h-32 w-full" />
+                                        </div>
+                                    </Card>
                                 ))}
                             </div>
                         </section>
@@ -923,172 +943,19 @@ const ProgramDashboardContent: React.FC = () => {
                     </>
                 ) : (
                     <>
-                        {/* Stats Section */}
-                        <section>
-                                <div className="md:hidden relative rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
-                                    <Button
-                                        onClick={() => handleUpdateProgram({ hide_gpa: !program.hide_gpa })}
-                                        variant="ghost"
-                                        size="sm"
-                                        className="absolute right-3 top-3 h-5 w-5 p-0"
-                                        aria-label={program.hide_gpa ? 'Show GPA' : 'Hide GPA'}
-                                    >
-                                        {program.hide_gpa ? (
-                                            <EyeOff className="h-3 w-3" />
-                                        ) : (
-                                            <Eye className="h-3 w-3" />
-                                        )}
-                                    </Button>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div className="min-w-0">
-                                            <div className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground/80">
-                                                <GraduationCap className="h-3 w-3" />
-                                                <span>GPA</span>
-                                            </div>
-                                            <div className="text-lg font-semibold leading-none">
-                                                {program.hide_gpa ? '****' : (
-                                                    <AnimatedNumber
-                                                        value={program.cgpa_scaled}
-                                                        format={(val) => val.toFixed(2)}
-                                                        animateOnMount
-                                                        rainbowThreshold={3.8}
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="min-w-0">
-                                            <div className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground/80">
-                                                <Percent className="h-3 w-3" />
-                                                <span>Avg</span>
-                                            </div>
-                                            <div className="text-lg font-semibold leading-none">
-                                                {program.hide_gpa ? '****' : (
-                                                    <>
-                                                        <AnimatedNumber
-                                                            value={program.cgpa_percentage}
-                                                            format={formatGpaPercentageValue}
-                                                            animateOnMount
-                                                        />
-                                                        <span className="ml-0.5 text-xs font-normal text-muted-foreground">%</span>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="min-w-0">
-                                            <div className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground/80">
-                                                <BookOpen className="h-3 w-3" />
-                                                <span>Credits</span>
-                                            </div>
-                                            <div className="text-lg font-semibold leading-none">
-                                                <AnimatedNumber
-                                                    value={totalCredits}
-                                                    format={(val) => val.toFixed(1)} // Format cleaner
-                                                    animateOnMount
-                                                />
-                                                <span className="mx-0.5 text-xs font-normal text-muted-foreground">/</span>
-                                                <span className="text-xs font-normal text-muted-foreground">{program.grad_requirement_credits}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="hidden gap-4 md:grid md:grid-cols-3 xl:grid-cols-4">
-                                    <Card className="border-border/50 bg-muted/10 shadow-none">
-                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1.5">
-                                            <CardTitle className="text-sm font-medium text-muted-foreground">CGPA (Scaled)</CardTitle>
-                                            <GraduationCap className="h-4 w-4 text-muted-foreground" />
-                                        </CardHeader>
-                                        <CardContent className="flex min-h-12 items-end pt-0">
-                                            <div className="flex w-full items-end justify-between gap-3">
-                                                <div className="text-[1.5rem] font-semibold tracking-tight leading-none">
-                                                    {program.hide_gpa ? '****' : (
-                                                        <AnimatedNumber
-                                                            value={program.cgpa_scaled}
-                                                            format={(val) => val.toFixed(2)}
-                                                            animateOnMount
-                                                            rainbowThreshold={3.8}
-                                                        />
-                                                    )}
-                                                </div>
-                                                <Button
-                                                    onClick={() => handleUpdateProgram({ hide_gpa: !program.hide_gpa })}
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="-mr-1 -mt-1 h-7 w-7 p-0 text-muted-foreground"
-                                                    aria-label={program.hide_gpa ? 'Show GPA' : 'Hide GPA'}
-                                                >
-                                                    {program.hide_gpa ? (
-                                                        <EyeOff className="h-3.5 w-3.5" />
-                                                    ) : (
-                                                        <Eye className="h-3.5 w-3.5" />
-                                                    )}
-                                                </Button>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-
-                                    <Card className="border-border/50 bg-muted/10 shadow-none">
-                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1.5">
-                                            <CardTitle className="text-sm font-medium text-muted-foreground">Average</CardTitle>
-                                            <Percent className="h-4 w-4 text-muted-foreground" />
-                                        </CardHeader>
-                                        <CardContent className="flex min-h-12 items-end pt-0">
-                                            <div className="text-[1.5rem] font-semibold tracking-tight leading-none">
-                                                {program.hide_gpa ? '****' : (
-                                                    <>
-                                                        <AnimatedNumber
-                                                            value={program.cgpa_percentage}
-                                                            format={formatGpaPercentageValue}
-                                                            animateOnMount
-                                                        />
-                                                        <span className="ml-1 text-base font-normal text-muted-foreground">%</span>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-
-                                    <Card className="border-border/50 bg-muted/10 shadow-none">
-                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1.5">
-                                            <CardTitle className="text-sm font-medium text-muted-foreground">Credits Progress</CardTitle>
-                                            <BookOpen className="h-4 w-4 text-muted-foreground" />
-                                        </CardHeader>
-                                        <CardContent className="flex min-h-12 flex-col justify-end gap-2 pt-0">
-                                            {program.grad_requirement_credits > 0 ? (
-                                                <>
-                                                    <div className="text-[1.5rem] font-semibold tracking-tight leading-none">
-                                                        <AnimatedNumber
-                                                            value={totalCredits}
-                                                            format={(val) => val.toFixed(1)}
-                                                            animateOnMount
-                                                        />
-                                                        <span className="mx-1 text-base font-normal text-muted-foreground">/</span>
-                                                        <span className="text-base font-normal text-muted-foreground">{program.grad_requirement_credits}</span>
-                                                    </div>
-                                                    <Progress value={creditsProgressPercent} />
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <div className="text-[1.5rem] font-semibold tracking-tight leading-none">
-                                                        <AnimatedNumber
-                                                            value={totalCredits}
-                                                            format={(val) => val.toFixed(1)}
-                                                            animateOnMount
-                                                        />
-                                                        <span className="ml-1 text-base font-normal text-muted-foreground">credits</span>
-                                                    </div>
-                                                    <Link
-                                                        to={`/programs/${program.id}/settings`}
-                                                        className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
-                                                    >
-                                                        Set graduation target →
-                                                    </Link>
-                                                </>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-                                </div>
-                            </section>
+                        <ProgramStatsSection
+                            cgpaScaled={program.cgpa_scaled}
+                            cgpaPercentage={program.cgpa_percentage}
+                            totalCredits={totalCredits}
+                            gradRequirementCredits={program.grad_requirement_credits}
+                            creditsProgressPercent={creditsProgressPercent}
+                            hideGpa={program.hide_gpa ?? false}
+                            programId={program.id}
+                            semesters={visibleSemesters}
+                            unassignedCredits={unassignedCredits}
+                            unassignedCourseCount={unassignedCourseCount}
+                            onToggleHideGpa={() => handleUpdateProgram({ hide_gpa: !program.hide_gpa })}
+                        />
 
                             <Separator />
 

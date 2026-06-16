@@ -9,6 +9,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Calligraph } from 'calligraph';
 import type { CalligraphProps } from 'calligraph';
+import { cn } from '@/lib/utils';
 
 interface AnimatedNumberProps {
     value: number;
@@ -174,7 +175,7 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
 
     return (
         <span
-            className={`animated-number ${className}`.trim()}
+            className={cn('animated-number max-w-full min-w-0', className)}
             style={style}
         >
             {shouldAnimate ? (
@@ -183,13 +184,13 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
                     animation={animation}
                     initial={animateOnMount}
                     autoSize={false}
-                    className="animated-number__base"
+                    className="animated-number__base block max-w-full"
                     onComplete={handleAnimationComplete}
                 >
                     {displayText}
                 </Calligraph>
             ) : (
-                <span className="animated-number__base">{formattedValue}</span>
+                <span className="animated-number__base block max-w-full">{formattedValue}</span>
             )}
             <span
                 aria-hidden="true"

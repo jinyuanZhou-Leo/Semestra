@@ -928,6 +928,9 @@ body>div>div[role="dialog"][data-state] {
   display: inline-grid;
   grid-template-areas: "stack";
   position: relative;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: bottom;
   font-variant-numeric: tabular-nums;
   transition: color 1.2s ease;
   will-change: opacity;
@@ -935,6 +938,10 @@ body>div>div[role="dialog"][data-state] {
 
 .animated-number__base {
   grid-area: stack;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .animated-number__rainbow {
